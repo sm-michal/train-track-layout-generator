@@ -10,10 +10,10 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <kotlin.version>1.9.22</kotlin.version>
-        <kotlin.compiler.jvmTarget>17</kotlin.compiler.jvmTarget>
-        <serialization.version>1.6.2</serialization.version>
-        <junit.version>5.10.1</junit.version>
+        <kotlin.version>2.1.0</kotlin.version>
+        <kotlin.compiler.jvmTarget>21</kotlin.compiler.jvmTarget>
+        <serialization.version>1.7.3</serialization.version>
+        <junit.version>5.11.3</junit.version>
     </properties>
 
     <dependencies>

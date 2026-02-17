@@ -52,6 +52,9 @@ class SvgRenderer {
 
             sb.append("\n    <path d=\"$path\" fill=\"none\" stroke=\"$strokeColor\" stroke-width=\"0.5\" />\n")
             sb.append("  </g>\n")
+
+            // Connection point indicator at the start of the piece
+            sb.append("  <circle cx=\"${pose.x}\" cy=\"${pose.y}\" r=\"1\" fill=\"black\" />\n")
         }
 
         sb.append("</svg>")
