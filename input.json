@@ -1,0 +1,8 @@
+{
+  "inventory": {
+    "straight": 8,
+    "curve_r40": 16
+  },
+  "maxSolutions": 2,
+  "outputDir": "output"
+}

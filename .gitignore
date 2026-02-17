@@ -1,0 +1,9 @@
+target/
+*.class
+*.iml
+.idea/
+.project
+.settings/
+.classpath
+output/
+input.json

@@ -1,0 +1,51 @@
+<svg viewBox="-50.0 -10.0 100.0 100.00000000000001" xmlns="http://www.w3.org/2000/svg">
+  <rect x="-50.0" y="-10.0" width="100.0" height="100.00000000000001" fill="#f0f0f0" />
+  <g transform="translate(0.0, 0.0) rotate(0.0)">
+    <path d="M 0 0 A 40.0 40.0 0 0 1 15.307337294603592 3.0448186995485305" fill="none" stroke="red" stroke-width="0.5" />
+  </g>
+  <g transform="translate(15.307337294603592, 3.0448186995485305) rotate(22.5)">
+    <path d="M 0 0 A 40.0 40.0 0 0 1 15.307337294603592 3.0448186995485305" fill="none" stroke="red" stroke-width="0.5" />
+  </g>
+  <g transform="translate(28.284271247461902, 11.715728752538102) rotate(45.0)">
+    <path d="M 0 0 A 40.0 40.0 0 0 1 15.307337294603592 3.0448186995485305" fill="none" stroke="red" stroke-width="0.5" />
+  </g>
+  <g transform="translate(36.95518130045147, 24.692662705396412) rotate(67.5)">
+    <path d="M 0 0 A 40.0 40.0 0 0 1 15.307337294603592 3.0448186995485305" fill="none" stroke="red" stroke-width="0.5" />
+  </g>
+  <g transform="translate(40.0, 40.00000000000001) rotate(90.0)">
+    <path d="M 0 0 A 40.0 40.0 0 0 1 15.307337294603592 3.0448186995485305" fill="none" stroke="red" stroke-width="0.5" />
+  </g>
+  <g transform="translate(36.95518130045147, 55.3073372946036) rotate(112.5)">
+    <path d="M 0 0 A 40.0 40.0 0 0 1 15.307337294603592 3.0448186995485305" fill="none" stroke="red" stroke-width="0.5" />
+  </g>
+  <g transform="translate(28.284271247461902, 68.28427124746192) rotate(135.0)">
+    <path d="M 0 0 A 40.0 40.0 0 0 1 15.307337294603592 3.0448186995485305" fill="none" stroke="red" stroke-width="0.5" />
+  </g>
+  <g transform="translate(15.307337294603592, 76.95518130045149) rotate(157.5)">
+    <path d="M 0 0 A 40.0 40.0 0 0 1 15.307337294603592 3.0448186995485305" fill="none" stroke="red" stroke-width="0.5" />
+  </g>
+  <g transform="translate(-2.220446049250313E-16, 80.00000000000001) rotate(180.0)">
+    <path d="M 0 0 A 40.0 40.0 0 0 1 15.307337294603592 3.0448186995485305" fill="none" stroke="red" stroke-width="0.5" />
+  </g>
+  <g transform="translate(-15.307337294603592, 76.95518130045149) rotate(202.5)">
+    <path d="M 0 0 A 40.0 40.0 0 0 1 15.307337294603592 3.0448186995485305" fill="none" stroke="red" stroke-width="0.5" />
+  </g>
+  <g transform="translate(-28.284271247461902, 68.28427124746192) rotate(225.0)">
+    <path d="M 0 0 A 40.0 40.0 0 0 1 15.307337294603592 3.0448186995485305" fill="none" stroke="red" stroke-width="0.5" />
+  </g>
+  <g transform="translate(-36.95518130045147, 55.307337294603606) rotate(247.5)">
+    <path d="M 0 0 A 40.0 40.0 0 0 1 15.307337294603592 3.0448186995485305" fill="none" stroke="red" stroke-width="0.5" />
+  </g>
+  <g transform="translate(-40.0, 40.000000000000014) rotate(270.0)">
+    <path d="M 0 0 A 40.0 40.0 0 0 1 15.307337294603592 3.0448186995485305" fill="none" stroke="red" stroke-width="0.5" />
+  </g>
+  <g transform="translate(-36.95518130045147, 24.692662705396422) rotate(292.5)">
+    <path d="M 0 0 A 40.0 40.0 0 0 1 15.307337294603592 3.0448186995485305" fill="none" stroke="red" stroke-width="0.5" />
+  </g>
+  <g transform="translate(-28.2842712474619, 11.715728752538114) rotate(315.0)">
+    <path d="M 0 0 A 40.0 40.0 0 0 1 15.307337294603592 3.0448186995485305" fill="none" stroke="red" stroke-width="0.5" />
+  </g>
+  <g transform="translate(-15.307337294603588, 3.044818699548541) rotate(337.5)">
+    <path d="M 0 0 A 40.0 40.0 0 0 1 15.307337294603592 3.0448186995485305" fill="none" stroke="red" stroke-width="0.5" />
+  </g>
+</svg>
