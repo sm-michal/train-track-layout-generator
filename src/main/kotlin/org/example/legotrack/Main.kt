@@ -37,6 +37,9 @@ fun main(args: Array<String>) {
     val endTime = System.currentTimeMillis()
 
     println("Found ${solutions.size} solutions in ${endTime - startTime}ms")
+    if (solutions.size < request.maxSolutions) {
+        println("Warning: Could only generate ${solutions.size} unique solutions (requested ${request.maxSolutions}).")
+    }
 
     val outputDir = File(request.outputDir)
     if (!outputDir.exists()) outputDir.mkdirs()

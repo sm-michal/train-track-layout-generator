@@ -10,6 +10,7 @@ class Solver(
     val toleranceAngle: Double = 1.0
 ) {
     private val solutions = mutableListOf<List<PlacedPiece>>()
+    private val seenSolutionSequences = mutableSetOf<List<String>>()
     private val startPose = Pose(0.0, 0.0, 0.0)
 
     // Map of ID to Definition(s). For curves, one ID might map to both Left and Right definitions.
@@ -30,6 +31,7 @@ class Solver(
 
     fun solve(): List<List<PlacedPiece>> {
         solutions.clear()
+        seenSolutionSequences.clear()
         val currentInventory = inventory.toMutableMap()
         backtrack(startPose, currentInventory, mutableListOf())
         return solutions
@@ -47,7 +49,10 @@ class Solver(
             val dist = currentPose.distanceTo(startPose)
             val angleDist = currentPose.angleDistanceTo(startPose)
             if (dist < tolerancePos && angleDist < toleranceAngle) {
-                solutions.add(path.toList())
+                val sequence = path.map { it.definition.id }
+                if (seenSolutionSequences.add(sequence)) {
+                    solutions.add(path.toList())
+                }
                 return
             }
         }
