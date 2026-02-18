@@ -16,6 +16,10 @@ class Solver(
     // Map of ID to Definition(s). For curves, one ID might map to both Left and Right definitions.
     private val pieceOptions = mutableMapOf<String, List<TrackPieceDefinition>>()
 
+    private val mirrorMap: Map<String, String> by lazy {
+        pieceOptions.values.flatten().associate { it.id to it.mirrorId }
+    }
+
     init {
         // Initialize piece options based on known library pieces
         inventory.keys.forEach { id ->
@@ -50,7 +54,8 @@ class Solver(
             val angleDist = currentPose.angleDistanceTo(startPose)
             if (dist < tolerancePos && angleDist < toleranceAngle) {
                 val sequence = path.map { it.definition.id }
-                if (seenSolutionSequences.add(sequence)) {
+                val canonical = getCanonicalSequence(sequence)
+                if (seenSolutionSequences.add(canonical)) {
                     solutions.add(path.toList())
                 }
                 return
@@ -117,5 +122,36 @@ class Solver(
         val entry = piece.pose
         val exit = piece.exitPose
         return Pose((entry.x + exit.x) / 2.0, (entry.y + exit.y) / 2.0, 0.0)
+    }
+
+    private fun getCanonicalSequence(sequence: List<String>): List<String> {
+        return getCanonicalSequence(sequence, mirrorMap)
+    }
+
+    companion object {
+        fun getCanonicalSequence(sequence: List<String>, mirrorMap: Map<String, String>): List<String> {
+            val s = sequence
+            val m = s.map { mirrorMap[it] ?: it }
+            val r = s.reversed()
+            val mr = r.map { mirrorMap[it] ?: it }
+
+            val equivalents = listOf(s, m, r, mr)
+
+            val allShifts = equivalents.flatMap { eq ->
+                (eq.indices).map { i ->
+                    eq.drop(i) + eq.take(i)
+                }
+            }
+
+            return allShifts.minWithOrNull(object : Comparator<List<String>> {
+                override fun compare(o1: List<String>, o2: List<String>): Int {
+                    for (i in o1.indices) {
+                        val cmp = o1[i].compareTo(o2[i])
+                        if (cmp != 0) return cmp
+                    }
+                    return 0
+                }
+            }) ?: s
+        }
     }
 }

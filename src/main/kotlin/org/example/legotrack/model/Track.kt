@@ -14,7 +14,8 @@ data class TrackPieceDefinition(
     val type: TrackType,
     val transform: Transform,
     val r: Double = 0.0, // radius for curves
-    val arcAngle: Double = 0.0 // angle for curves
+    val arcAngle: Double = 0.0, // angle for curves
+    val mirrorId: String = id
 ) {
     fun getSvgPath(): String {
         return when (type) {
