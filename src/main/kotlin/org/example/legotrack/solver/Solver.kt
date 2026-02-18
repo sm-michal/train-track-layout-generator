@@ -27,8 +27,16 @@ class Solver(
             when (id) {
                 "straight" -> pieceOptions[id] = listOf(TrackLibrary.STRAIGHT)
                 "curve_r40" -> pieceOptions[id] = listOf(TrackLibrary.CURVE_R40, TrackLibrary.CURVE_R40_RIGHT)
-                "switch_left" -> pieceOptions[id] = listOf(TrackLibrary.SWITCH_LEFT)
-                "switch_right" -> pieceOptions[id] = listOf(TrackLibrary.SWITCH_RIGHT)
+                "switch_left" -> pieceOptions[id] = listOf(
+                    TrackLibrary.SWITCH_LEFT,
+                    TrackLibrary.SWITCH_LEFT_REV_STRAIGHT,
+                    TrackLibrary.SWITCH_LEFT_REV_BRANCH
+                )
+                "switch_right" -> pieceOptions[id] = listOf(
+                    TrackLibrary.SWITCH_RIGHT,
+                    TrackLibrary.SWITCH_RIGHT_REV_STRAIGHT,
+                    TrackLibrary.SWITCH_RIGHT_REV_BRANCH
+                )
                 // Add more as needed
             }
         }
@@ -57,13 +65,16 @@ class Solver(
             val dist = currentPose.distanceTo(startPose)
             val angleDist = currentPose.angleDistanceTo(startPose)
             if (dist < tolerancePos && angleDist < toleranceAngle) {
-                val usedSwitches = path.filter { it.definition.type == TrackType.SWITCH }
-                val nSwitches = usedSwitches.size
-
                 val unusedExits = mutableListOf<Pair<Int, PlacedPiece>>()
                 for (piece in path) {
                     if (piece.definition.type == TrackType.SWITCH) {
-                        unusedExits.add((1 - piece.chosenExitIndex) to piece)
+                        val entryPose = piece.pose
+                        val chosenExitPose = piece.exitPose
+                        piece.allConnectorPoses.forEachIndexed { idx, p ->
+                            if (p.distanceTo(entryPose) > 0.1 && p.distanceTo(chosenExitPose) > 0.1) {
+                                unusedExits.add(idx to piece)
+                            }
+                        }
                     }
                 }
 
@@ -95,8 +106,9 @@ class Solver(
             return
         }
 
-        // Try each piece type in inventory
-        for (id in remaining.keys) {
+        // Try each piece type in inventory, prioritizing switches
+        val sortedKeys = remaining.keys.sortedByDescending { if (it.contains("switch")) 1 else 0 }
+        for (id in sortedKeys) {
             val count = remaining[id]!!
             if (count > 0) {
                 // Try each option for this piece type (e.g. Left/Right for curves)
@@ -135,19 +147,27 @@ class Solver(
         remaining: MutableMap<String, Int>,
         mainPath: List<PlacedPiece>
     ) {
-        if (unusedExits.size == 2) {
-            val (idx1, s1) = unusedExits[0]
-            val (idx2, s2) = unusedExits[1]
-            val pose1 = s1.allExitPoses[idx1]
-            val pose2 = s2.allExitPoses[idx2]
+        if (unusedExits.size >= 2) {
+            // Try all pairs of unused exits
+            for (i in unusedExits.indices) {
+                for (j in i + 1 until unusedExits.size) {
+                    val (idx1, s1) = unusedExits[i]
+                    val (idx2, s2) = unusedExits[j]
+                    val pose1 = s1.allConnectorPoses[idx1]
+                    val pose2 = s2.allConnectorPoses[idx2]
 
-            val path = findPathBetween(pose1, pose2, remaining, mainPath, 4)
-            if (path != null) {
-                val fullPath = mainPath + path
-                val sequence = getPathSequence(fullPath)
-                val canonical = getCanonicalSequence(sequence, isCycle = false)
-                if (seenSolutionSequences.add(canonical)) {
-                    solutions.add(fullPath)
+                    // To connect back to a switch exit, we must be facing the opposite way
+                    val targetPose = pose2.copy(rotation = (pose2.rotation + 180.0) % 360.0)
+
+                    val path = findPathBetween(pose1, targetPose, remaining, mainPath, 6)
+                    if (path != null) {
+                        val fullPath = mainPath + path
+                        val sequence = getPathSequence(fullPath)
+                        val canonical = getCanonicalSequence(sequence, isCycle = false)
+                        if (seenSolutionSequences.add(canonical)) {
+                            solutions.add(fullPath)
+                        }
+                    }
                 }
             }
         }
@@ -195,7 +215,7 @@ class Solver(
         remaining: MutableMap<String, Int>,
         mainPath: List<PlacedPiece>
     ) {
-        val startPose = switch.allExitPoses[exitIdx]
+        val startPose = switch.allConnectorPoses[exitIdx]
         val currentBranch = mutableListOf<PlacedPiece>()
         searchBranch(switch, exitIdx, startPose, remaining, mainPath, currentBranch, 0)
     }

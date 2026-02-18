@@ -16,12 +16,14 @@ data class TrackPieceDefinition(
     val exits: List<Transform>,
     val r: Double = 0.0, // radius for curves
     val arcAngle: Double = 0.0, // angle for curves
-    val mirrorId: String = id
+    val mirrorId: String = id,
+    val baseTransform: Transform = Transform(0.0, 0.0, 0.0), // Transform from entry to canonical origin
+    val allConnectors: List<Transform> = exits + Transform(0.0, 0.0, 0.0) // All connector transforms relative to entry
 ) {
     fun getSvgPaths(): List<String> {
         return when (type) {
             TrackType.STRAIGHT -> {
-                val length = exits[0].dx
+                val length = 16.0 // Standard straight length
                 listOf("M 0 0 L $length 0")
             }
             TrackType.CURVE -> {
@@ -33,15 +35,11 @@ data class TrackPieceDefinition(
                 listOf("M 0 0 A $r $r 0 0 $sweep $x $y")
             }
             TrackType.SWITCH -> {
-                // Return paths for all exits
-                exits.mapIndexed { index, transform ->
-                    if (index == 0) { // Straight path
-                        "M 0 0 L ${transform.dx} 0"
-                    } else { // Branch path
-                        // Using a quadratic Bezier to approximate the curve
-                        "M 0 0 Q ${transform.dx * 0.5} 0, ${transform.dx} ${transform.dy}"
-                    }
-                }
+                // Return paths for standard switch geometry (32 length, 16 offset branch)
+                listOf(
+                    "M 0 0 L 32 0",
+                    "M 0 0 Q 16 0, 32.693 12.955"
+                )
             }
         }
     }
@@ -58,7 +56,7 @@ data class PlacedPiece(
         pose.apply(definition.exits[chosenExitIndex])
     }
 
-    val allExitPoses: List<Pose> by lazy {
-        definition.exits.map { pose.apply(it) }
+    val allConnectorPoses: List<Pose> by lazy {
+        definition.allConnectors.map { pose.apply(it) }
     }
 }

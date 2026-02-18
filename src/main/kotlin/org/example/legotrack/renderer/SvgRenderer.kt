@@ -17,8 +17,8 @@ class SvgRenderer {
         var maxY = Double.NEGATIVE_INFINITY
 
         for (piece in pieces) {
-            // Check entry and all exit poses
-            (listOf(piece.pose) + piece.allExitPoses).forEach { p ->
+            // Check entry and all connector poses
+            (listOf(piece.pose) + piece.allConnectorPoses).forEach { p ->
                 minX = min(minX, p.x)
                 minY = min(minY, p.y)
                 maxX = max(maxX, p.x)
@@ -41,9 +41,9 @@ class SvgRenderer {
         sb.append("\n  <rect x=\"$minX\" y=\"$minY\" width=\"$width\" height=\"$height\" fill=\"#f0f0f0\" />\n")
 
         for (piece in pieces) {
-            val pose = piece.pose
+            val basePose = piece.pose.apply(piece.definition.baseTransform)
             val paths = piece.definition.getSvgPaths()
-            sb.append("""  <g transform="translate(${pose.x}, ${pose.y}) rotate(${pose.rotation})">""")
+            sb.append("""  <g transform="translate(${basePose.x}, ${basePose.y}) rotate(${basePose.rotation})">""")
 
             val strokeColor = when(piece.definition.type) {
                 TrackType.STRAIGHT -> "blue"
@@ -57,7 +57,7 @@ class SvgRenderer {
             sb.append("  </g>\n")
 
             // Connection point indicator at the start of the piece
-            sb.append("  <circle cx=\"${pose.x}\" cy=\"${pose.y}\" r=\"1\" fill=\"black\" />\n")
+            sb.append("  <circle cx=\"${piece.pose.x}\" cy=\"${piece.pose.y}\" r=\"1\" fill=\"black\" />\n")
 
             // Dead end indicators (stop signs)
             if (piece.isDeadEnd) {
@@ -66,7 +66,7 @@ class SvgRenderer {
                 sb.append("  <line x1=\"${exit.x-1.2}\" y1=\"${exit.y}\" x2=\"${exit.x+1.2}\" y2=\"${exit.y}\" stroke=\"white\" stroke-width=\"0.5\" />\n")
             }
             for (exitIdx in piece.deadEndExits) {
-                val exit = piece.allExitPoses[exitIdx]
+                val exit = piece.allConnectorPoses[exitIdx]
                 sb.append("  <circle cx=\"${exit.x}\" cy=\"${exit.y}\" r=\"2\" fill=\"red\" stroke=\"white\" stroke-width=\"0.5\" />\n")
                 sb.append("  <line x1=\"${exit.x-1.2}\" y1=\"${exit.y}\" x2=\"${exit.x+1.2}\" y2=\"${exit.y}\" stroke=\"white\" stroke-width=\"0.5\" />\n")
             }

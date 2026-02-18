@@ -48,8 +48,35 @@ object TrackLibrary {
         type = TrackType.SWITCH,
         exits = listOf(
             Transform(32.0, 0.0, 0.0), // Straight
-            Transform(32.693, 12.955, 22.5) // Branch (calculated for offset 16 with R40)
-        )
+            Transform(32.693, 12.955, 22.5) // Branch
+        ),
+        mirrorId = "switch_right"
+    )
+
+    val SWITCH_LEFT_REV_STRAIGHT = TrackPieceDefinition(
+        id = "switch_left:rev_s",
+        type = TrackType.SWITCH,
+        exits = listOf(Transform(32.0, 0.0, 0.0)),
+        allConnectors = listOf(
+            Transform(32.0, 0.0, 0.0), // C1
+            Transform(-0.693, -12.955, 22.5), // C3
+            Transform(0.0, 0.0, 0.0) // C2 (entry)
+        ),
+        baseTransform = Transform(32.0, 0.0, 180.0),
+        mirrorId = "switch_right:rev_s"
+    )
+
+    val SWITCH_LEFT_REV_BRANCH = TrackPieceDefinition(
+        id = "switch_left:rev_b",
+        type = TrackType.SWITCH,
+        exits = listOf(Transform(35.162, -0.542, -22.5)),
+        allConnectors = listOf(
+            Transform(35.162, -0.542, -22.5), // C1
+            Transform(5.598, 11.703, -22.5), // C2
+            Transform(0.0, 0.0, 0.0) // C3 (entry)
+        ),
+        baseTransform = Transform(35.162, -0.542, 157.5),
+        mirrorId = "switch_right:rev_b"
     )
 
     val SWITCH_RIGHT = TrackPieceDefinition(
@@ -58,6 +85,33 @@ object TrackLibrary {
         exits = listOf(
             Transform(32.0, 0.0, 0.0), // Straight
             Transform(32.693, -12.955, -22.5) // Branch
-        )
+        ),
+        mirrorId = "switch_left"
+    )
+
+    val SWITCH_RIGHT_REV_STRAIGHT = TrackPieceDefinition(
+        id = "switch_right:rev_s",
+        type = TrackType.SWITCH,
+        exits = listOf(Transform(32.0, 0.0, 0.0)),
+        allConnectors = listOf(
+            Transform(32.0, 0.0, 0.0), // C1
+            Transform(-0.693, 12.955, -22.5), // C3
+            Transform(0.0, 0.0, 0.0) // C2 (entry)
+        ),
+        baseTransform = Transform(32.0, 0.0, 180.0),
+        mirrorId = "switch_left:rev_s"
+    )
+
+    val SWITCH_RIGHT_REV_BRANCH = TrackPieceDefinition(
+        id = "switch_right:rev_b",
+        type = TrackType.SWITCH,
+        exits = listOf(Transform(35.162, 0.542, 22.5)),
+        allConnectors = listOf(
+            Transform(35.162, 0.542, 22.5), // C1
+            Transform(5.598, -11.703, 22.5), // C2
+            Transform(0.0, 0.0, 0.0) // C3 (entry)
+        ),
+        baseTransform = Transform(35.162, 0.542, 202.5),
+        mirrorId = "switch_left:rev_b"
     )
 }
