@@ -14,7 +14,10 @@ class DuplicateTest {
         val solutions = solver.solve()
 
         val uniqueSolutions = solutions.map { sol ->
-            sol.map { it.definition.id }
+            sol.map { piece ->
+                val deadEnds = piece.deadEndExits.joinToString(",")
+                "${piece.definition.id}:${piece.chosenExitIndex}:${piece.isDeadEnd}:${deadEnds}"
+            }
         }.toSet()
 
         assertEquals(solutions.size, uniqueSolutions.size, "Found duplicate solutions!")
@@ -46,10 +49,22 @@ class DuplicateTest {
         val mirrorMap = mapOf(
             "straight" to "straight",
             "curve_r40" to "curve_r40_right",
-            "curve_r40_right" to "curve_r40"
+            "curve_r40_right" to "curve_r40",
+            "switch_left" to "switch_right",
+            "switch_right" to "switch_left",
+            "switch_left:rev_s" to "switch_right:rev_s",
+            "switch_right:rev_s" to "switch_left:rev_s",
+            "switch_left:rev_b" to "switch_right:rev_b",
+            "switch_right:rev_b" to "switch_left:rev_b"
         )
 
-        val canonicals = solutions.map { sol -> Solver.getCanonicalSequence(sol.map { it.definition.id }, mirrorMap) }
+        val canonicals = solutions.map { sol ->
+            val sequence = sol.map { piece ->
+                val deadEnds = piece.deadEndExits.joinToString(",")
+                "${piece.definition.id}:${piece.chosenExitIndex}:${piece.isDeadEnd}:${deadEnds}"
+            }
+            Solver.getCanonicalSequence(sequence, mirrorMap)
+        }
         assertEquals(solutions.size, canonicals.toSet().size, "Found visually identical solutions!")
     }
 }

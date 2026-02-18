@@ -16,7 +16,11 @@ data class Pose(val x: Double, val y: Double, val rotation: Double) {
     }
 
     fun distanceTo(other: Pose): Double {
-        return sqrt((x - other.x).pow(2) + (y - other.y).pow(2))
+        return sqrt(distanceSq(other))
+    }
+
+    fun distanceSq(other: Pose): Double {
+        return (x - other.x).pow(2) + (y - other.y).pow(2)
     }
 
     fun angleDistanceTo(other: Pose): Double {
