@@ -22,7 +22,8 @@ object TrackLibrary {
             dRotation = R40_ANGLE
         ),
         r = R40_RADIUS,
-        arcAngle = R40_ANGLE
+        arcAngle = R40_ANGLE,
+        mirrorId = "curve_r40_right"
     )
 
     val CURVE_R40_RIGHT = TrackPieceDefinition(
@@ -34,6 +35,7 @@ object TrackLibrary {
             dRotation = -R40_ANGLE
         ),
         r = R40_RADIUS,
-        arcAngle = -R40_ANGLE
+        arcAngle = -R40_ANGLE,
+        mirrorId = "curve_r40"
     )
 }
