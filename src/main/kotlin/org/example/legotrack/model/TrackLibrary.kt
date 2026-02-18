@@ -10,16 +10,18 @@ object TrackLibrary {
     val STRAIGHT = TrackPieceDefinition(
         id = "straight",
         type = TrackType.STRAIGHT,
-        transform = Transform(16.0, 0.0, 0.0)
+        exits = listOf(Transform(16.0, 0.0, 0.0))
     )
 
     val CURVE_R40 = TrackPieceDefinition(
         id = "curve_r40",
         type = TrackType.CURVE,
-        transform = Transform(
-            dx = R40_RADIUS * sin(R40_RAD),
-            dy = R40_RADIUS * (1.0 - cos(R40_RAD)),
-            dRotation = R40_ANGLE
+        exits = listOf(
+            Transform(
+                dx = R40_RADIUS * sin(R40_RAD),
+                dy = R40_RADIUS * (1.0 - cos(R40_RAD)),
+                dRotation = R40_ANGLE
+            )
         ),
         r = R40_RADIUS,
         arcAngle = R40_ANGLE,
@@ -29,13 +31,33 @@ object TrackLibrary {
     val CURVE_R40_RIGHT = TrackPieceDefinition(
         id = "curve_r40_right",
         type = TrackType.CURVE,
-        transform = Transform(
-            dx = R40_RADIUS * sin(R40_RAD),
-            dy = -R40_RADIUS * (1.0 - cos(R40_RAD)),
-            dRotation = -R40_ANGLE
+        exits = listOf(
+            Transform(
+                dx = R40_RADIUS * sin(R40_RAD),
+                dy = -R40_RADIUS * (1.0 - cos(R40_RAD)),
+                dRotation = -R40_ANGLE
+            )
         ),
         r = R40_RADIUS,
         arcAngle = -R40_ANGLE,
         mirrorId = "curve_r40"
+    )
+
+    val SWITCH_LEFT = TrackPieceDefinition(
+        id = "switch_left",
+        type = TrackType.SWITCH,
+        exits = listOf(
+            Transform(32.0, 0.0, 0.0), // Straight
+            Transform(32.693, 12.955, 22.5) // Branch (calculated for offset 16 with R40)
+        )
+    )
+
+    val SWITCH_RIGHT = TrackPieceDefinition(
+        id = "switch_right",
+        type = TrackType.SWITCH,
+        exits = listOf(
+            Transform(32.0, 0.0, 0.0), // Straight
+            Transform(32.693, -12.955, -22.5) // Branch
+        )
     )
 }

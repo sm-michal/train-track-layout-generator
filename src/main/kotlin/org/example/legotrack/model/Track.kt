@@ -6,37 +6,42 @@ import kotlin.math.*
 @Serializable
 enum class TrackType {
     STRAIGHT,
-    CURVE
+    CURVE,
+    SWITCH
 }
 
 data class TrackPieceDefinition(
     val id: String,
     val type: TrackType,
-    val transform: Transform,
+    val exits: List<Transform>,
     val r: Double = 0.0, // radius for curves
     val arcAngle: Double = 0.0, // angle for curves
     val mirrorId: String = id
 ) {
-    fun getSvgPath(): String {
+    fun getSvgPaths(): List<String> {
         return when (type) {
             TrackType.STRAIGHT -> {
-                val length = transform.dx
-                //"M 0 -4 L $length -4 L $length 4 L 0 4 Z " + // Sleeper area
-                //"M 0 -2.5 L $length -2.5 " + // Rail 1
-                //"M 0 2.5 L $length 2.5"      // Rail 2
-                "M 0 0 L $length 0"
+                val length = exits[0].dx
+                listOf("M 0 0 L $length 0")
             }
             TrackType.CURVE -> {
                 val theta = Math.toRadians(abs(arcAngle))
-                val sweep = if (arcAngle > 0) 1 else 0 // SVG sweep flag
-                // This is a bit complex for a single path string if we want multiple lines.
-                // Let's just return a simple arc for now.
+                val sweep = if (arcAngle > 0) 1 else 0
                 val r = abs(r)
                 val x = r * sin(theta)
                 val y = if (arcAngle > 0) r * (1 - cos(theta)) else -r * (1 - cos(theta))
-
-                // For SVG 'a' command: rx ry x-axis-rotation large-arc-flag sweep-flag x y
-                "M 0 0 A $r $r 0 0 $sweep $x $y"
+                listOf("M 0 0 A $r $r 0 0 $sweep $x $y")
+            }
+            TrackType.SWITCH -> {
+                // Return paths for all exits
+                exits.mapIndexed { index, transform ->
+                    if (index == 0) { // Straight path
+                        "M 0 0 L ${transform.dx} 0"
+                    } else { // Branch path
+                        // Using a quadratic Bezier to approximate the curve
+                        "M 0 0 Q ${transform.dx * 0.5} 0, ${transform.dx} ${transform.dy}"
+                    }
+                }
             }
         }
     }
@@ -44,9 +49,16 @@ data class TrackPieceDefinition(
 
 data class PlacedPiece(
     val definition: TrackPieceDefinition,
-    val pose: Pose // The entry pose
+    val pose: Pose, // The entry pose
+    val chosenExitIndex: Int = 0,
+    val isDeadEnd: Boolean = false,
+    val deadEndExits: List<Int> = emptyList()
 ) {
     val exitPose: Pose by lazy {
-        pose.apply(definition.transform)
+        pose.apply(definition.exits[chosenExitIndex])
+    }
+
+    val allExitPoses: List<Pose> by lazy {
+        definition.exits.map { pose.apply(it) }
     }
 }
