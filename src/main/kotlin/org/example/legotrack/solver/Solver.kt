@@ -1,7 +1,7 @@
 package org.example.legotrack.solver
 
 import org.example.legotrack.model.*
-import kotlin.math.abs
+import kotlin.math.*
 
 class Solver(
     val inventory: Map<String, Int>, // ID to count
@@ -12,6 +12,7 @@ class Solver(
     private val solutions = mutableListOf<List<PlacedPiece>>()
     private var deadEndSolutionCount = 0
     private val seenSolutionSequences = mutableSetOf<List<String>>()
+    private val sidingCache = mutableMapOf<String, List<PlacedPiece>?>()
     private val startPose = Pose(0.0, 0.0, 0.0)
 
     // Map of ID to Definition(s). For curves, one ID might map to both Left and Right definitions.
@@ -42,12 +43,14 @@ class Solver(
         }
     }
 
-    private val maxPieceLength: Double = 16.0 // Default
+    private val maxPieceLength: Double = 32.0 // Switch straight is 32
+    private val maxPieceAngle: Double = 22.5 // Max angle of a single piece
 
     fun solve(): List<List<PlacedPiece>> {
         solutions.clear()
         deadEndSolutionCount = 0
         seenSolutionSequences.clear()
+        sidingCache.clear()
         val currentInventory = inventory.toMutableMap()
         backtrack(startPose, currentInventory, mutableListOf())
         return solutions
@@ -85,15 +88,18 @@ class Solver(
                         solutions.add(path.toList())
                     }
                 } else if (unusedExits.size == 1) {
+                    // One branch must be a dead end
                     if (deadEndSolutionCount < 1) {
                         val (exitIdx, switch) = unusedExits[0]
                         tryAddDeadEnd(switch, exitIdx, remaining, path)
                     }
-                } else {
-                    // More than one unused exit.
-                    // To be valid, we must either connect them all (even) or connect all but one (odd).
-                    // For now, let's try to connect pairs of exits to form sidings.
+                } else if (unusedExits.size == 2) {
+                    // Two branches must form a siding
                     tryConnectAll(unusedExits, remaining, path)
+                } else if (unusedExits.size == 3) {
+                    // Three branches: 1 siding (2 exits) and 1 dead end (1 exit)
+                    // This is more complex, but let's try to connect a pair first
+                    tryConnectPairAndDeadEnd(unusedExits, remaining, path)
                 }
                 return
             }
@@ -103,6 +109,12 @@ class Solver(
         val distToStart = currentPose.distanceTo(startPose)
         val remainingCount = remaining.values.sum()
         if (distToStart > remainingCount * maxPieceLength + tolerancePos) {
+            return
+        }
+
+        val angleToStart = currentPose.angleDistanceTo(startPose)
+        // Each piece can change angle by at most 22.5 degrees
+        if (angleToStart > remainingCount * maxPieceAngle + toleranceAngle) {
             return
         }
 
@@ -147,27 +159,51 @@ class Solver(
         remaining: MutableMap<String, Int>,
         mainPath: List<PlacedPiece>
     ) {
-        if (unusedExits.size >= 2) {
-            // Try all pairs of unused exits
-            for (i in unusedExits.indices) {
-                for (j in i + 1 until unusedExits.size) {
-                    val (idx1, s1) = unusedExits[i]
-                    val (idx2, s2) = unusedExits[j]
-                    val pose1 = s1.allConnectorPoses[idx1]
-                    val pose2 = s2.allConnectorPoses[idx2]
+        // Try all pairs of unused exits to form a single siding
+        for (i in unusedExits.indices) {
+            for (j in i + 1 until unusedExits.size) {
+                val (idx1, s1) = unusedExits[i]
+                val (idx2, s2) = unusedExits[j]
+                val pose1 = s1.allConnectorPoses[idx1]
+                val pose2 = s2.allConnectorPoses[idx2]
 
-                    // To connect back to a switch exit, we must be facing the opposite way
-                    val targetPose = pose2.copy(rotation = (pose2.rotation + 180.0) % 360.0)
+                val targetPose = pose2.copy(rotation = (pose2.rotation + 180.0) % 360.0)
 
-                    val path = findPathBetween(pose1, targetPose, remaining, mainPath, 6)
-                    if (path != null) {
-                        val fullPath = mainPath + path
-                        val sequence = getPathSequence(fullPath)
-                        val canonical = getCanonicalSequence(sequence, isCycle = false)
-                        if (seenSolutionSequences.add(canonical)) {
-                            solutions.add(fullPath)
-                        }
+                    val path = findPathBetween(pose1, targetPose, remaining, mainPath, 4)
+                if (path != null) {
+                    val fullPath = mainPath + path
+                    val sequence = getPathSequence(fullPath)
+                    val canonical = getCanonicalSequence(sequence, isCycle = false)
+                    if (seenSolutionSequences.add(canonical)) {
+                        solutions.add(fullPath)
                     }
+                }
+            }
+        }
+    }
+
+    private fun tryConnectPairAndDeadEnd(
+        unusedExits: List<Pair<Int, PlacedPiece>>,
+        remaining: MutableMap<String, Int>,
+        mainPath: List<PlacedPiece>
+    ) {
+        if (deadEndSolutionCount >= 1) return
+
+        for (i in unusedExits.indices) {
+            for (j in i + 1 until unusedExits.size) {
+                val (idx1, s1) = unusedExits[i]
+                val (idx2, s2) = unusedExits[j]
+                val pose1 = s1.allConnectorPoses[idx1]
+                val pose2 = s2.allConnectorPoses[idx2]
+                val targetPose = pose2.copy(rotation = (pose2.rotation + 180.0) % 360.0)
+
+                val path = findPathBetween(pose1, targetPose, remaining, mainPath, 4)
+                if (path != null) {
+                    // Pair connected, now add dead end to the remaining one
+                    val remainingExit = unusedExits.indices.first { it != i && it != j }
+                    val (exitIdx, switch) = unusedExits[remainingExit]
+                    tryAddDeadEnd(switch, exitIdx, remaining, mainPath + path)
+                    if (deadEndSolutionCount >= 1) return
                 }
             }
         }
@@ -180,13 +216,35 @@ class Solver(
         forbiddenPieces: List<PlacedPiece>,
         maxDepth: Int
     ): List<PlacedPiece>? {
-        if (startPose.distanceTo(targetPose) < tolerancePos &&
+        val relX = targetPose.x - startPose.x
+        val relY = targetPose.y - startPose.y
+
+        val rad = Math.toRadians(-startPose.rotation)
+        val c = cos(rad)
+        val s = sin(rad)
+        val localX = relX * c - relY * s
+        val localY = relX * s + relY * c
+
+        val relRot = (targetPose.rotation - startPose.rotation + 360.0) % 360.0
+        // Standardize to grid for cache (e.g. 0.1 units)
+        val cacheKey = "${(localX / 0.1).toInt()}:${(localY / 0.1).toInt()}:${(relRot / 0.1).toInt()}:$maxDepth"
+
+        if (sidingCache.containsKey(cacheKey)) return sidingCache[cacheKey]
+
+        val distToTarget = startPose.distanceTo(targetPose)
+        if (distToTarget < tolerancePos &&
             startPose.angleDistanceTo(targetPose) < toleranceAngle) {
             return emptyList()
         }
         if (maxDepth <= 0) return null
 
+        // Pruning: can't reach target even with max length pieces
+        if (distToTarget > maxDepth * 32.0 + tolerancePos) return null
+
         for (id in remaining.keys) {
+            // Optimization: Usually sidings don't need more switches
+            if (id.contains("switch")) continue
+
             val count = remaining[id]!!
             if (count > 0) {
                 val options = pieceOptions[id] ?: continue
@@ -199,13 +257,15 @@ class Solver(
                         val rest = findPathBetween(nextPiece.exitPose, targetPose, remaining, forbiddenPieces + nextPiece, maxDepth - 1)
                         if (rest != null) {
                             remaining[id] = count
-                            return listOf(nextPiece) + rest
+                            sidingCache[cacheKey] = listOf(nextPiece) + rest
+                            return sidingCache[cacheKey]
                         }
                         remaining[id] = count
                     }
                 }
             }
         }
+        sidingCache[cacheKey] = null
         return null
     }
 
@@ -274,33 +334,50 @@ class Solver(
     }
 
     private fun isCollision(newPiece: PlacedPiece, path: List<PlacedPiece>): Boolean {
-        val newMid = getMidpoint(newPiece)
+        val newPoints = getCheckpoints(newPiece)
 
         // Against path
-        for (i in 0 until path.size) {
-            val oldMid = getMidpoint(path[i])
-            if (newMid.distanceTo(oldMid) < 7.5) return true
+        for (oldPiece in path) {
+            val oldPoints = getCheckpoints(oldPiece)
+            for (np in newPoints) {
+                for (op in oldPoints) {
+                    if (np.distanceTo(op) < 7.0) return true
+                }
+            }
         }
 
         // Against start
         if (path.size > 2) {
-            // Roughly estimate the midpoint of the first piece (which starts at startPose)
             val firstPiece = path.firstOrNull()
-            val startPieceMid = firstPiece?.let { getMidpoint(it) } ?: startPose
-
-            if (newMid.distanceTo(startPieceMid) < 7.5) {
-                // If we are close to the start but NOT about to close the loop, it's a collision
-                if (newPiece.exitPose.distanceTo(startPose) > tolerancePos * 5) return true
+            if (firstPiece != null) {
+                val startPoints = getCheckpoints(firstPiece)
+                for (np in newPoints) {
+                    for (sp in startPoints) {
+                        if (np.distanceTo(sp) < 7.0) {
+                            // If we are close to the start but NOT about to close the loop, it's a collision
+                            if (newPiece.exitPose.distanceTo(startPose) > tolerancePos * 10) return true
+                        }
+                    }
+                }
             }
         }
 
         return false
     }
 
-    private fun getMidpoint(piece: PlacedPiece): Pose {
+    private fun getCheckpoints(piece: PlacedPiece): List<Pose> {
         val entry = piece.pose
-        val exit = piece.exitPose // This is the chosen exit
-        return Pose((entry.x + exit.x) / 2.0, (entry.y + exit.y) / 2.0, 0.0)
+        val exit = piece.exitPose
+        val mid = Pose((entry.x + exit.x) / 2.0, (entry.y + exit.y) / 2.0, 0.0)
+
+        // For longer pieces (switches), add more points
+        return if (piece.definition.type == TrackType.SWITCH) {
+            val q1 = Pose((entry.x + mid.x) / 2.0, (entry.y + mid.y) / 2.0, 0.0)
+            val q3 = Pose((exit.x + mid.x) / 2.0, (exit.y + mid.y) / 2.0, 0.0)
+            listOf(q1, mid, q3)
+        } else {
+            listOf(mid)
+        }
     }
 
     private fun getCanonicalSequence(sequence: List<String>, isCycle: Boolean = true): List<String> {
