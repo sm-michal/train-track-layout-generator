@@ -18,7 +18,8 @@ data class TrackPieceDefinition(
     val arcAngle: Double = 0.0, // angle for curves
     val mirrorId: String = id,
     val baseTransform: Transform = Transform(0.0, 0.0, 0.0), // Transform from entry to canonical origin
-    val allConnectors: List<Transform> = exits + Transform(0.0, 0.0, 0.0) // All connector transforms relative to entry
+    val allConnectors: List<Transform> = exits + Transform(0.0, 0.0, 0.0), // All connector transforms relative to entry
+    val relativeCheckpoints: List<Transform> = emptyList() // Custom checkpoints for collision detection
 ) {
     fun getSvgPaths(): List<String> {
         return when (type) {
@@ -58,5 +59,9 @@ data class PlacedPiece(
 
     val allConnectorPoses: List<Pose> by lazy {
         definition.allConnectors.map { pose.apply(it) }
+    }
+
+    val checkpointPoses: List<Pose> by lazy {
+        definition.relativeCheckpoints.map { pose.apply(it) }
     }
 }

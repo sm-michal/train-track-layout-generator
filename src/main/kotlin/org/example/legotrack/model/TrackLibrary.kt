@@ -10,7 +10,8 @@ object TrackLibrary {
     val STRAIGHT = TrackPieceDefinition(
         id = "straight",
         type = TrackType.STRAIGHT,
-        exits = listOf(Transform(16.0, 0.0, 0.0))
+        exits = listOf(Transform(16.0, 0.0, 0.0)),
+        relativeCheckpoints = listOf(Transform(8.0, 0.0, 0.0))
     )
 
     val CURVE_R40 = TrackPieceDefinition(
@@ -25,7 +26,14 @@ object TrackLibrary {
         ),
         r = R40_RADIUS,
         arcAngle = R40_ANGLE,
-        mirrorId = "curve_r40_right"
+        mirrorId = "curve_r40_right",
+        relativeCheckpoints = listOf(
+            Transform(
+                dx = R40_RADIUS * sin(R40_RAD / 2.0),
+                dy = R40_RADIUS * (1.0 - cos(R40_RAD / 2.0)),
+                dRotation = 0.0
+            )
+        )
     )
 
     val CURVE_R40_RIGHT = TrackPieceDefinition(
@@ -40,7 +48,14 @@ object TrackLibrary {
         ),
         r = R40_RADIUS,
         arcAngle = -R40_ANGLE,
-        mirrorId = "curve_r40"
+        mirrorId = "curve_r40",
+        relativeCheckpoints = listOf(
+            Transform(
+                dx = R40_RADIUS * sin(R40_RAD / 2.0),
+                dy = -R40_RADIUS * (1.0 - cos(R40_RAD / 2.0)),
+                dRotation = 0.0
+            )
+        )
     )
 
     val SWITCH_LEFT = TrackPieceDefinition(
@@ -50,7 +65,13 @@ object TrackLibrary {
             Transform(32.0, 0.0, 0.0), // Straight
             Transform(32.693, 12.955, 22.5) // Branch
         ),
-        mirrorId = "switch_right"
+        mirrorId = "switch_right",
+        relativeCheckpoints = listOf(
+            Transform(8.0, 0.0, 0.0),
+            Transform(16.0, 0.0, 0.0),
+            Transform(24.0, 0.0, 0.0),
+            Transform(16.346, 6.477, 0.0) // Branch mid
+        )
     )
 
     val SWITCH_LEFT_REV_STRAIGHT = TrackPieceDefinition(
@@ -63,7 +84,13 @@ object TrackLibrary {
             Transform(0.0, 0.0, 0.0) // C2 (entry)
         ),
         baseTransform = Transform(32.0, 0.0, 180.0),
-        mirrorId = "switch_right:rev_s"
+        mirrorId = "switch_right:rev_s",
+        relativeCheckpoints = listOf(
+            Transform(8.0, 0.0, 0.0),
+            Transform(16.0, 0.0, 0.0),
+            Transform(24.0, 0.0, 0.0),
+            Transform(16.346, 6.477, 0.0)
+        )
     )
 
     val SWITCH_LEFT_REV_BRANCH = TrackPieceDefinition(
@@ -76,7 +103,13 @@ object TrackLibrary {
             Transform(0.0, 0.0, 0.0) // C3 (entry)
         ),
         baseTransform = Transform(35.162, -0.542, 157.5),
-        mirrorId = "switch_right:rev_b"
+        mirrorId = "switch_right:rev_b",
+        relativeCheckpoints = listOf(
+            Transform(8.0, 0.0, 0.0),
+            Transform(16.0, 0.0, 0.0),
+            Transform(24.0, 0.0, 0.0),
+            Transform(16.346, 6.477, 0.0)
+        )
     )
 
     val SWITCH_RIGHT = TrackPieceDefinition(
@@ -86,7 +119,13 @@ object TrackLibrary {
             Transform(32.0, 0.0, 0.0), // Straight
             Transform(32.693, -12.955, -22.5) // Branch
         ),
-        mirrorId = "switch_left"
+        mirrorId = "switch_left",
+        relativeCheckpoints = listOf(
+            Transform(8.0, 0.0, 0.0),
+            Transform(16.0, 0.0, 0.0),
+            Transform(24.0, 0.0, 0.0),
+            Transform(16.346, -6.477, 0.0) // Branch mid
+        )
     )
 
     val SWITCH_RIGHT_REV_STRAIGHT = TrackPieceDefinition(
@@ -99,7 +138,13 @@ object TrackLibrary {
             Transform(0.0, 0.0, 0.0) // C2 (entry)
         ),
         baseTransform = Transform(32.0, 0.0, 180.0),
-        mirrorId = "switch_left:rev_s"
+        mirrorId = "switch_left:rev_s",
+        relativeCheckpoints = listOf(
+            Transform(8.0, 0.0, 0.0),
+            Transform(16.0, 0.0, 0.0),
+            Transform(24.0, 0.0, 0.0),
+            Transform(16.346, -6.477, 0.0)
+        )
     )
 
     val SWITCH_RIGHT_REV_BRANCH = TrackPieceDefinition(
@@ -112,6 +157,12 @@ object TrackLibrary {
             Transform(0.0, 0.0, 0.0) // C3 (entry)
         ),
         baseTransform = Transform(35.162, 0.542, 202.5),
-        mirrorId = "switch_left:rev_b"
+        mirrorId = "switch_left:rev_b",
+        relativeCheckpoints = listOf(
+            Transform(8.0, 0.0, 0.0),
+            Transform(16.0, 0.0, 0.0),
+            Transform(24.0, 0.0, 0.0),
+            Transform(16.346, -6.477, 0.0)
+        )
     )
 }

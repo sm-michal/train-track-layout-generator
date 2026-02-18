@@ -37,7 +37,7 @@ class SolverTest {
             "switch_left" to 1,
             "switch_right" to 1
         )
-        val solver = Solver(inventory, maxSolutions = 10)
+        val solver = Solver(inventory, maxSolutions = 50)
         val solutions = solver.solve()
 
         assertTrue(solutions.isNotEmpty(), "Should find at least one solution")
