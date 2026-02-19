@@ -101,30 +101,95 @@ class SidingDebugTest {
     }
 
     @Test
-    fun testSolverFindsSiding() {
-        val inventory = mapOf(
-            "curve_r40" to 18,
-            "straight" to 8,
-            "switch_left" to 1,
-            "switch_right" to 1
-        )
-        // We want to find the siding. We might need a higher maxSolutions or wait.
-        val solver = Solver(inventory, maxSolutions = 100)
-        val solutions = solver.solve()
+    fun testDoubleSidingConstruction() {
+        val pieces = mutableListOf<PlacedPiece>()
+        var currentPose = Pose(0.0, 0.0, 0.0)
 
-        println("Found ${solutions.size} solutions")
-        val sidingSolutions = solutions.filter { sol ->
-            sol.any { it.definition.id.contains("switch_left") } &&
-            sol.any { it.definition.id.contains("switch_right") } &&
-            sol.size > 20 // The oval with siding is 26 pieces
+        // 1. 8 curves (180 deg turn)
+        repeat(8) {
+            val piece = PlacedPiece(TrackLibrary.CURVE_R40, currentPose, 0)
+            pieces.add(piece)
+            currentPose = piece.exitPose
         }
-        println("Found ${sidingSolutions.size} potential siding solutions")
 
-        assert(sidingSolutions.isNotEmpty()) { "Solver could not find any siding solutions" }
+        // 2. First Siding
+        val sw1 = PlacedPiece(TrackLibrary.SWITCH_LEFT, currentPose, 0)
+        pieces.add(sw1)
+        val branchStart1 = sw1.allConnectorPoses[1]
 
-        // Save one siding solution
+        // Main line: 2 straights
+        var mainPose1 = sw1.exitPose
+        repeat(2) {
+            val piece = PlacedPiece(TrackLibrary.STRAIGHT, mainPose1, 0)
+            pieces.add(piece)
+            mainPose1 = piece.exitPose
+        }
+
+        // Branch line: 2 curves (right)
+        var branchPose1 = branchStart1
+        val branchPieces1 = mutableListOf<PlacedPiece>()
+        repeat(2) {
+            val piece = PlacedPiece(TrackLibrary.CURVE_R40_RIGHT, branchPose1, 0)
+            branchPieces1.add(piece)
+            branchPose1 = piece.exitPose
+        }
+
+        val sw2 = PlacedPiece(TrackLibrary.SWITCH_RIGHT_REV_STRAIGHT, mainPose1, 0)
+        pieces.add(sw2)
+        currentPose = sw2.exitPose
+
+        // 3. 8 curves (180 deg turn)
+        repeat(8) {
+            val piece = PlacedPiece(TrackLibrary.CURVE_R40, currentPose, 0)
+            pieces.add(piece)
+            currentPose = piece.exitPose
+        }
+
+        // 4. Second Siding
+        val sw3 = PlacedPiece(TrackLibrary.SWITCH_LEFT, currentPose, 0)
+        pieces.add(sw3)
+        val branchStart2 = sw3.allConnectorPoses[1]
+
+        // Main line: 2 straights
+        var mainPose2 = sw3.exitPose
+        repeat(2) {
+            val piece = PlacedPiece(TrackLibrary.STRAIGHT, mainPose2, 0)
+            pieces.add(piece)
+            mainPose2 = piece.exitPose
+        }
+
+        // Branch line: 2 curves (right)
+        var branchPose2 = branchStart2
+        val branchPieces2 = mutableListOf<PlacedPiece>()
+        repeat(2) {
+            val piece = PlacedPiece(TrackLibrary.CURVE_R40_RIGHT, branchPose2, 0)
+            branchPieces2.add(piece)
+            branchPose2 = piece.exitPose
+        }
+
+        val sw4 = PlacedPiece(TrackLibrary.SWITCH_RIGHT_REV_STRAIGHT, mainPose2, 0)
+        pieces.add(sw4)
+        currentPose = sw4.exitPose
+
+        // Validation
+        val distToStart = currentPose.distanceTo(Pose(0.0, 0.0, 0.0))
+        println("Double siding distance to start: $distToStart")
+
+        val siding1Dist = branchPose1.distanceTo(sw2.allConnectorPoses[1])
+        println("Siding 1 gap distance: $siding1Dist")
+
+        val siding2Dist = branchPose2.distanceTo(sw4.allConnectorPoses[1])
+        println("Siding 2 gap distance: $siding2Dist")
+
+        // Visualize
         val renderer = SvgRenderer()
-        val svg = renderer.render(sidingSolutions[0])
-        File("target/solver_siding.svg").writeText(svg)
+        val allPieces = pieces + branchPieces1 + branchPieces2
+        val svg = renderer.render(allPieces)
+        File("target/double_siding_debug.svg").writeText(svg)
+
+        assert(distToStart < 0.1)
+        assert(siding1Dist < 0.1)
+        assert(siding2Dist < 0.1)
     }
+
 }

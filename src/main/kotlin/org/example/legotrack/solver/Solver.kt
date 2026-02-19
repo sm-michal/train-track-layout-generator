@@ -81,26 +81,7 @@ class Solver(
                     }
                 }
 
-                if (unusedExits.isEmpty()) {
-                    val sequence = getPathSequence(path)
-                    val canonical = getCanonicalSequence(sequence, isCycle = true)
-                    if (seenSolutionSequences.add(canonical)) {
-                        solutions.add(path.toList())
-                    }
-                } else if (unusedExits.size == 1) {
-                    // One branch must be a dead end
-                    if (deadEndSolutionCount < 1) {
-                        val (exitIdx, switch) = unusedExits[0]
-                        tryAddDeadEnd(switch, exitIdx, remaining, path)
-                    }
-                } else if (unusedExits.size == 2) {
-                    // Two branches must form a siding
-                    tryConnectAll(unusedExits, remaining, path)
-                } else if (unusedExits.size == 3) {
-                    // Three branches: 1 siding (2 exits) and 1 dead end (1 exit)
-                    // This is more complex, but let's try to connect a pair first
-                    tryConnectPairAndDeadEnd(unusedExits, remaining, path)
-                }
+                resolveUnusedExits(unusedExits, remaining, path)
                 return
             }
         }
@@ -173,60 +154,116 @@ class Solver(
         }
     }
 
-    private fun tryConnectAll(
-        unusedExits: List<Pair<Int, PlacedPiece>>,
-        remaining: MutableMap<String, Int>,
-        mainPath: MutableList<PlacedPiece>
-    ) {
-        // Try all pairs of unused exits to form a single siding
-        for (i in unusedExits.indices) {
-            for (j in i + 1 until unusedExits.size) {
-                val (idx1, s1) = unusedExits[i]
-                val (idx2, s2) = unusedExits[j]
-                val pose1 = s1.allConnectorPoses[idx1]
-                val pose2 = s2.allConnectorPoses[idx2]
-
-                val targetPose = pose2.copy(rotation = (pose2.rotation + 180.0) % 360.0)
-
-                val sidingPath = mutableListOf<PlacedPiece>()
-                if (findPathBetweenBacktrack(pose1, targetPose, remaining, mainPath, sidingPath, 6)) {
-                    val fullPath = mainPath.toList() + sidingPath
-                    val sequence = getPathSequence(fullPath)
-                    val canonical = getCanonicalSequence(sequence, isCycle = false)
-                    if (seenSolutionSequences.add(canonical)) {
-                        solutions.add(fullPath)
-                    }
-                }
-            }
+    private fun getInventoryId(fullId: String): String {
+        return when {
+            fullId.contains("switch_left") -> "switch_left"
+            fullId.contains("switch_right") -> "switch_right"
+            fullId.contains("curve_r40") -> "curve_r40"
+            else -> fullId
         }
     }
 
-    private fun tryConnectPairAndDeadEnd(
+    private fun resolveUnusedExits(
         unusedExits: List<Pair<Int, PlacedPiece>>,
         remaining: MutableMap<String, Int>,
-        mainPath: MutableList<PlacedPiece>
+        currentPath: List<PlacedPiece>
     ) {
-        if (deadEndSolutionCount >= 1) return
+        if (unusedExits.isEmpty()) {
+            val sequence = getPathSequence(currentPath)
+            val hasDeadEnds = currentPath.any { it.isDeadEnd || it.deadEndExits.isNotEmpty() }
+            val canonical = getCanonicalSequence(sequence, isCycle = !hasDeadEnds)
+            if (seenSolutionSequences.add(canonical)) {
+                solutions.add(currentPath.toList())
+            }
+            return
+        }
 
-        for (i in unusedExits.indices) {
-            for (j in i + 1 until unusedExits.size) {
-                val (idx1, s1) = unusedExits[i]
-                val (idx2, s2) = unusedExits[j]
-                val pose1 = s1.allConnectorPoses[idx1]
-                val pose2 = s2.allConnectorPoses[idx2]
-                val targetPose = pose2.copy(rotation = (pose2.rotation + 180.0) % 360.0)
+        // Try connecting the first unused exit to any other unused exit
+        val (idx1, s1) = unusedExits[0]
+        val pose1 = s1.allConnectorPoses[idx1]
 
-                val sidingPath = mutableListOf<PlacedPiece>()
-                if (findPathBetweenBacktrack(pose1, targetPose, remaining, mainPath, sidingPath, 6)) {
-                    // Pair connected, now add dead end to the remaining one
-                    val remainingExit = unusedExits.indices.first { it != i && it != j }
-                    val (exitIdx, switch) = unusedExits[remainingExit]
+        for (i in 1 until unusedExits.size) {
+            val (idx2, s2) = unusedExits[i]
+            val pose2 = s2.allConnectorPoses[idx2]
+            val targetPose = pose2.copy(rotation = (pose2.rotation + 180.0) % 360.0)
 
-                    val combinedPath = mainPath.toMutableList()
-                    combinedPath.addAll(sidingPath)
+            val sidingPath = mutableListOf<PlacedPiece>()
+            val tempPath = currentPath.toMutableList()
 
-                    tryAddDeadEnd(switch, exitIdx, remaining, combinedPath)
-                    if (deadEndSolutionCount >= 1) return
+            if (findPathBetweenBacktrack(pose1, targetPose, remaining, tempPath, sidingPath, 6)) {
+                val nextUnused = unusedExits.filterIndexed { index, _ -> index != 0 && index != i }
+                resolveUnusedExits(nextUnused, remaining, tempPath)
+
+                // Backtrack inventory manually because findPathBetweenBacktrack now won't restore on success
+                for (p in sidingPath) {
+                    val invId = getInventoryId(p.definition.id)
+                    remaining[invId] = (remaining[invId] ?: 0) + 1
+                }
+            }
+        }
+
+        // Try making the first unused exit a dead end (if allowed)
+        val switchCount = currentPath.count { it.definition.type == TrackType.SWITCH }
+        if (switchCount % 2 != 0 && deadEndSolutionCount < 1) {
+            val (exitIdx, switch) = unusedExits[0]
+            val startPose = switch.allConnectorPoses[exitIdx]
+            val currentBranch = mutableListOf<PlacedPiece>()
+            searchBranchRecursive(switch, exitIdx, startPose, remaining, currentPath, currentBranch, 0, unusedExits.drop(1))
+        }
+    }
+
+    private fun searchBranchRecursive(
+        switch: PlacedPiece,
+        exitIdx: Int,
+        currentPose: Pose,
+        remaining: MutableMap<String, Int>,
+        mainPath: List<PlacedPiece>,
+        currentBranch: MutableList<PlacedPiece>,
+        depth: Int,
+        otherUnused: List<Pair<Int, PlacedPiece>>
+    ) {
+        if (depth <= 4) {
+            val pathWithDeadEnd = if (currentBranch.isEmpty()) {
+                mainPath.map {
+                    if (it === switch) it.copy(deadEndExits = it.deadEndExits + exitIdx)
+                    else it
+                }
+            } else {
+                val lastPiece = currentBranch.last()
+                val updatedLastPiece = lastPiece.copy(isDeadEnd = true)
+                mainPath.toList() + currentBranch.dropLast(1) + updatedLastPiece
+            }
+
+            if (otherUnused.isEmpty()) {
+                val sequence = getPathSequence(pathWithDeadEnd)
+                val canonical = getCanonicalSequence(sequence, isCycle = false)
+                if (seenSolutionSequences.add(canonical)) {
+                    solutions.add(pathWithDeadEnd)
+                    deadEndSolutionCount++
+                }
+            } else {
+                resolveUnusedExits(otherUnused, remaining, pathWithDeadEnd)
+            }
+        }
+
+        if (depth >= 4) return
+
+        for (id in remaining.keys) {
+            if (id.contains("switch")) continue
+            val count = remaining[id]!!
+            if (count > 0) {
+                val options = pieceOptions[id] ?: continue
+                for (pieceDef in options) {
+                    for (exitIndex in pieceDef.exits.indices) {
+                        val nextPiece = PlacedPiece(pieceDef, currentPose, exitIndex)
+                        if (isCollision(nextPiece, mainPath + currentBranch)) continue
+
+                        remaining[id] = count - 1
+                        currentBranch.add(nextPiece)
+                        searchBranchRecursive(switch, exitIdx, nextPiece.exitPose, remaining, mainPath, currentBranch, depth + 1, otherUnused)
+                        currentBranch.removeAt(currentBranch.size - 1)
+                        remaining[id] = count
+                    }
                 }
             }
         }
@@ -303,7 +340,6 @@ class Solver(
             sidingPath.add(nextPiece)
 
             if (findPathBetweenBacktrack(nextPiece.exitPose, targetPose, remaining, path, sidingPath, maxDepth - 1)) {
-                remaining[inventoryId] = count
                 return true
             }
 
