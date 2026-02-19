@@ -18,7 +18,7 @@ data class TrackPieceDefinition(
     val arcAngle: Double = 0.0, // angle for curves
     val mirrorId: String = id,
     val baseTransform: Transform = Transform(0.0, 0.0, 0.0), // Transform from entry to canonical origin
-    val allConnectors: List<Transform> = exits + Transform(0.0, 0.0, 0.0), // All connector transforms relative to entry
+    val allConnectors: List<Transform> = exits + Transform(0.0, 0.0, 180.0), // All connector transforms relative to entry
     val relativeCheckpoints: List<Transform> = emptyList() // Custom checkpoints for collision detection
 ) {
     fun getSvgPaths(): List<String> {
@@ -37,10 +37,17 @@ data class TrackPieceDefinition(
             }
             TrackType.SWITCH -> {
                 // Return paths for standard switch geometry (32 length, 16 offset branch)
-                listOf(
-                    "M 0 0 L 32 0",
-                    "M 0 0 Q 16 0, 32.693 12.955"
-                )
+                if (id.contains("right")) {
+                    listOf(
+                        "M 0 0 L 32 0",
+                        "M 0 0 Q 16 0, 32.693 -12.955"
+                    )
+                } else {
+                    listOf(
+                        "M 0 0 L 32 0",
+                        "M 0 0 Q 16 0, 32.693 12.955"
+                    )
+                }
             }
         }
     }
