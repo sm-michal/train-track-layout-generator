@@ -80,8 +80,8 @@ object TrackLibrary {
         exits = listOf(Transform(32.0, 0.0, 0.0)),
         allConnectors = listOf(
             Transform(32.0, 0.0, 0.0), // C1
-            Transform(-0.693, -12.955, 22.5), // C3
-            Transform(0.0, 0.0, 0.0) // C2 (entry)
+            Transform(-0.693, -12.955, 202.5), // C3
+            Transform(0.0, 0.0, 180.0) // C2 (entry)
         ),
         baseTransform = Transform(32.0, 0.0, 180.0),
         mirrorId = "switch_right:rev_s",
@@ -99,8 +99,8 @@ object TrackLibrary {
         exits = listOf(Transform(35.162, -0.542, -22.5)),
         allConnectors = listOf(
             Transform(35.162, -0.542, -22.5), // C1
-            Transform(5.598, 11.703, -22.5), // C2
-            Transform(0.0, 0.0, 0.0) // C3 (entry)
+            Transform(5.598, 11.703, 157.5), // C2
+            Transform(0.0, 0.0, 180.0) // C3 (entry)
         ),
         baseTransform = Transform(35.162, -0.542, 157.5),
         mirrorId = "switch_right:rev_b",
@@ -134,8 +134,8 @@ object TrackLibrary {
         exits = listOf(Transform(32.0, 0.0, 0.0)),
         allConnectors = listOf(
             Transform(32.0, 0.0, 0.0), // C1
-            Transform(-0.693, 12.955, -22.5), // C3
-            Transform(0.0, 0.0, 0.0) // C2 (entry)
+            Transform(-0.693, 12.955, 157.5), // C3
+            Transform(0.0, 0.0, 180.0) // C2 (entry)
         ),
         baseTransform = Transform(32.0, 0.0, 180.0),
         mirrorId = "switch_left:rev_s",
@@ -153,8 +153,8 @@ object TrackLibrary {
         exits = listOf(Transform(35.162, 0.542, 22.5)),
         allConnectors = listOf(
             Transform(35.162, 0.542, 22.5), // C1
-            Transform(5.598, -11.703, 22.5), // C2
-            Transform(0.0, 0.0, 0.0) // C3 (entry)
+            Transform(5.598, -11.703, 202.5), // C2
+            Transform(0.0, 0.0, 180.0) // C3 (entry)
         ),
         baseTransform = Transform(35.162, 0.542, 202.5),
         mirrorId = "switch_left:rev_b",
