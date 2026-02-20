@@ -63,7 +63,7 @@ class DuplicateTest {
                 val deadEnds = piece.deadEndExits.joinToString(",")
                 "${piece.definition.id}:${piece.chosenExitIndex}:${piece.isDeadEnd}:${deadEnds}"
             }
-            Solver.getCanonicalSequence(sequence, mirrorMap)
+            SolutionCanonicalizer.getCanonicalSequence(sequence, mirrorMap)
         }
         assertEquals(solutions.size, canonicals.toSet().size, "Found visually identical solutions!")
     }

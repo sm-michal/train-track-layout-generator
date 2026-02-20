@@ -13,6 +13,7 @@
         <kotlin.version>2.1.0</kotlin.version>
         <kotlin.compiler.jvmTarget>21</kotlin.compiler.jvmTarget>
         <serialization.version>1.7.3</serialization.version>
+        <coroutines.version>1.10.1</coroutines.version>
         <junit.version>5.11.3</junit.version>
     </properties>
 
@@ -26,6 +27,11 @@
             <groupId>org.jetbrains.kotlinx</groupId>
             <artifactId>kotlinx-serialization-json</artifactId>
             <version>${serialization.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.jetbrains.kotlinx</groupId>
+            <artifactId>kotlinx-coroutines-core</artifactId>
+            <version>${coroutines.version}</version>
         </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
