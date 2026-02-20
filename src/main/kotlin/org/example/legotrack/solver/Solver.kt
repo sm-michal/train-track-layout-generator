@@ -2,6 +2,8 @@ package org.example.legotrack.solver
 
 import kotlinx.coroutines.*
 import org.example.legotrack.model.*
+import java.util.Collections
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.*
 
@@ -13,11 +15,11 @@ class Solver(
 ) {
     private val globalFeatureUsage = mutableMapOf<String, Int>().withDefault { 0 }
     private val scorer = LayoutScorer(globalFeatureUsage)
-    private val solutions = java.util.Collections.synchronizedList(mutableListOf<ScoredSolution>())
+    private val solutions = Collections.synchronizedList(mutableListOf<ScoredSolution>())
     private var deadEndSolutionCount = 0
     private val nodesExplored = AtomicLong(0)
-    private val seenSolutionSequences = java.util.Collections.synchronizedSet(mutableSetOf<List<String>>())
-    private val sidingCache = java.util.concurrent.ConcurrentHashMap<String, List<PlacedPiece>?>()
+    private val seenSolutionSequences = Collections.synchronizedSet(mutableSetOf<List<String>>())
+    private val sidingCache = ConcurrentHashMap<String, List<PlacedPiece>?>()
     private val startPose = Pose(0.0, 0.0, 0.0)
 
     class SpatialGrid(val cellSize: Double = 32.0) {
