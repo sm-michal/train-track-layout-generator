@@ -60,9 +60,9 @@ class ManualLayoutTest {
             val numCurves = (abs(deg) / 22.5).roundToInt()
             val isRight = direction.lowercase() == "right"
 
-            // In our library, CURVE_R40 has arcAngle 22.5 (Right)
-            // and CURVE_R40_RIGHT has arcAngle -22.5 (Left)
-            val def = if (isRight) TrackLibrary.CURVE_R40 else TrackLibrary.CURVE_R40_RIGHT
+            // In our library, CURVE_R40_RIGHT has arcAngle 22.5 (Right)
+            // and CURVE_R40_LEFT has arcAngle -22.5 (Left)
+            val def = if (isRight) TrackLibrary.CURVE_R40_RIGHT else TrackLibrary.CURVE_R40_LEFT
 
             repeat(numCurves) {
                 val piece = PlacedPiece(def, currentPose, 0)
@@ -87,7 +87,7 @@ class ManualLayoutTest {
                 // We'll follow one path as "main" and store the other as pending
                 // For a switch piece: exit 0 is straight, exit 1 is branch
                 // Based on LEGO, switch_left branches left.
-                // In our lib, SWITCH_LEFT branches with +22.5 (Right turn in SVG).
+                // In our lib, SWITCH_LEFT branches with -22.5 (Left turn in SVG).
 
                 // Let's assume 'right' path goes to exit 0 (straight) and 'left' to exit 1 (branch)
                 // or vice-versa depending on piece ID.

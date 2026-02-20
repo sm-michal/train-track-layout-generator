@@ -37,17 +37,12 @@ data class TrackPieceDefinition(
             }
             TrackType.SWITCH -> {
                 // Return paths for standard switch geometry (32 length, 16 offset branch)
-                if (id.contains("right")) {
-                    listOf(
-                        "M 0 0 L 32 0",
-                        "M 0 0 Q 16 0, 32.693 -12.955"
-                    )
-                } else {
-                    listOf(
-                        "M 0 0 L 32 0",
-                        "M 0 0 Q 16 0, 32.693 12.955"
-                    )
-                }
+                val isRight = id.contains("right")
+                val yOffset = if (isRight) 12.955 else -12.955
+                listOf(
+                    "M 0 0 L 32 0",
+                    "M 0 0 Q 16 0, 32.693 $yOffset"
+                )
             }
         }
     }
