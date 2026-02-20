@@ -155,47 +155,8 @@ class ManualLayoutTest {
 
     @Test
     fun testUserLayout() {
-        val jsonText = """
-        [
-            {
-                "turn": {
-                    "rad": 40,
-                    "deg": 180,
-                    "direction": "right"
-                }
-            },
-            { "straight": 6 },
-            {
-                "turn": {
-                    "rad": 40,
-                    "deg": 180,
-                    "direction": "right"
-                }
-            },
-            {
-                "switch_left": {
-                    "left": [
-                        {
-                            "turn": {
-                                "rad": 40,
-                                "deg": 45,
-                                "direction": "right"
-                            }
-                        }
-                    ],
-                    "right": [
-                        { "straight": 2 }
-                    ],
-                    "orientation": "switch"
-                }
-            },
-            {
-                "switch_right": {
-                    "orientation": "merge"
-                }
-            }
-        ]
-        """.trimIndent()
+        val jsonText = javaClass.classLoader.getResource("user_layout.json")?.readText()
+            ?: throw IllegalStateException("user_layout.json not found in resources")
 
         val element = json.parseToJsonElement(jsonText)
         val builder = ManualLayoutBuilder()
