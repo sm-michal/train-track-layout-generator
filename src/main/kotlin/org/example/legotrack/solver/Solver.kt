@@ -13,7 +13,7 @@ class Solver(
 ) {
     private val globalFeatureUsage = mutableMapOf<String, Int>().withDefault { 0 }
     private val scorer = LayoutScorer(globalFeatureUsage)
-    private val solutions = java.util.Collections.synchronizedList(mutableListOf<List<PlacedPiece>>())
+    private val solutions = java.util.Collections.synchronizedList(mutableListOf<ScoredSolution>())
     private var deadEndSolutionCount = 0
     private val nodesExplored = AtomicLong(0)
     private val seenSolutionSequences = java.util.Collections.synchronizedSet(mutableSetOf<List<String>>())
@@ -94,10 +94,15 @@ class Solver(
         }
     }
 
+    data class ScoredSolution(
+        val path: List<PlacedPiece>,
+        val scoreBreakdown: LayoutScorer.ScoreBreakdown
+    )
+
     private val maxPieceLength: Double = 32.0 // Switch straight is 32
     private val maxPieceAngle: Double = 22.5 // Max angle of a single piece
 
-    fun solve(): List<List<PlacedPiece>> = runBlocking(Dispatchers.Default) {
+    fun solve(): List<ScoredSolution> = runBlocking(Dispatchers.Default) {
         solutions.clear()
         deadEndSolutionCount = 0
         nodesExplored.set(0)
@@ -107,7 +112,8 @@ class Solver(
         val currentInventory = inventory.toMutableMap()
         val grid = SpatialGrid()
         backtrackParallel(startPose, currentInventory, mutableListOf(), grid, 0, IncrementalFeatures())
-        solutions.toList()
+
+        solutions.toList().sortedByDescending { it.scoreBreakdown.totalScore }
     }
 
     private suspend fun backtrackParallel(
@@ -315,7 +321,9 @@ class Solver(
             val hasDeadEnds = currentPath.any { it.isDeadEnd || it.deadEndExits.isNotEmpty() }
             val canonical = canonicalizer.getCanonicalSequence(sequence, isCycle = !hasDeadEnds)
             if (seenSolutionSequences.add(canonical)) {
-                solutions.add(currentPath.toList())
+                val features = scorer.extractFeatures(currentPath)
+                val breakdown = scorer.getScoreBreakdown(features)
+                solutions.add(ScoredSolution(currentPath.toList(), breakdown))
                 updateGlobalUsage(currentPath)
             }
             return
@@ -381,7 +389,9 @@ class Solver(
                 val sequence = canonicalizer.getPathSequence(pathWithDeadEnd)
                 val canonical = canonicalizer.getCanonicalSequence(sequence, isCycle = false)
                 if (seenSolutionSequences.add(canonical)) {
-                    solutions.add(pathWithDeadEnd)
+                    val features = scorer.extractFeatures(pathWithDeadEnd)
+                    val breakdown = scorer.getScoreBreakdown(features)
+                    solutions.add(ScoredSolution(pathWithDeadEnd, breakdown))
                     updateGlobalUsage(pathWithDeadEnd)
                     deadEndSolutionCount++
                 }

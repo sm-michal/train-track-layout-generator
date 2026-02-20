@@ -14,7 +14,7 @@ class DuplicateTest {
         val solutions = solver.solve()
 
         val uniqueSolutions = solutions.map { sol ->
-            sol.map { piece ->
+            sol.path.map { piece ->
                 val deadEnds = piece.deadEndExits.joinToString(",")
                 "${piece.definition.id}:${piece.chosenExitIndex}:${piece.isDeadEnd}:${deadEnds}"
             }
@@ -59,7 +59,7 @@ class DuplicateTest {
         )
 
         val canonicals = solutions.map { sol ->
-            val sequence = sol.map { piece ->
+            val sequence = sol.path.map { piece ->
                 val deadEnds = piece.deadEndExits.joinToString(",")
                 "${piece.definition.id}:${piece.chosenExitIndex}:${piece.isDeadEnd}:${deadEnds}"
             }

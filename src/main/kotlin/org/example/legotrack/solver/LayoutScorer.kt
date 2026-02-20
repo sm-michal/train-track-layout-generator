@@ -121,29 +121,44 @@ class LayoutScorer(private val globalFeatureUsage: Map<String, Int>) {
         )
     }
 
+    data class ScoreBreakdown(
+        val totalScore: Double,
+        val components: Map<String, Double>
+    )
+
     fun calculateScore(features: LayoutFeatures): Double {
-        var score = 0.0
+        return getScoreBreakdown(features).totalScore
+    }
+
+    fun getScoreBreakdown(features: LayoutFeatures): ScoreBreakdown {
+        val components = mutableMapOf<String, Double>()
 
         // Rewards (prioritized weights)
-        score += (if (features.hasMultiLoop) 1.0 else 0.0) * 1000.0
-        score += (if (features.hasSiding) 1.0 else 0.0) * 500.0
-        score += features.longStraights.toDouble() * 100.0
-        score += features.longTurns180.toDouble() * 80.0
-        score += features.longTurns90.toDouble() * 80.0
-        score += features.longTurns45.toDouble() * 80.0
-        score += (if (features.isUShape) 1.0 else 0.0) * 50.0
-        score += (if (features.isLShape) 1.0 else 0.0) * 30.0
-        score += (if (features.hasDeadEnd) 1.0 else 0.0) * 10.0
+        components["multi_loop"] = (if (features.hasMultiLoop) 1.0 else 0.0) * 1000.0
+        components["siding"] = (if (features.hasSiding) 1.0 else 0.0) * 500.0
+        components["long_straights"] = features.longStraights.toDouble() * 100.0
+        components["long_turns_180"] = features.longTurns180.toDouble() * 80.0
+        components["long_turns_90"] = features.longTurns90.toDouble() * 80.0
+        components["long_turns_45"] = features.longTurns45.toDouble() * 80.0
+        components["u_shape"] = (if (features.isUShape) 1.0 else 0.0) * 50.0
+        components["l_shape"] = (if (features.isLShape) 1.0 else 0.0) * 30.0
+        components["dead_end"] = (if (features.hasDeadEnd) 1.0 else 0.0) * 10.0
 
         // Penalties
-        score -= features.zigZags.toDouble() * 50.0
+        components["zig_zags"] = -features.zigZags.toDouble() * 50.0
 
         // Diversity (Strategy B)
-        if (features.isLShape) score -= globalFeatureUsage.getOrDefault("l_shape", 0) * 200.0
-        if (features.isUShape) score -= globalFeatureUsage.getOrDefault("u_shape", 0) * 300.0
-        if (features.hasSiding) score -= globalFeatureUsage.getOrDefault("siding", 0) * 400.0
+        if (features.isLShape) {
+            components["diversity_l_shape"] = -globalFeatureUsage.getOrDefault("l_shape", 0) * 200.0
+        }
+        if (features.isUShape) {
+            components["diversity_u_shape"] = -globalFeatureUsage.getOrDefault("u_shape", 0) * 300.0
+        }
+        if (features.hasSiding) {
+            components["diversity_siding"] = -globalFeatureUsage.getOrDefault("siding", 0) * 400.0
+        }
 
-        return score
+        return ScoreBreakdown(components.values.sum(), components)
     }
 
     fun updateIncremental(feat: IncrementalFeatures, piece: PlacedPiece): IncrementalFeatures {
