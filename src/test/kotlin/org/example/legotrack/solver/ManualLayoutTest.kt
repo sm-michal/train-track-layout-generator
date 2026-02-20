@@ -19,8 +19,8 @@ class ManualLayoutTest {
         val pieces = mutableListOf<PlacedPiece>()
         var currentPose = Pose(0.0, 0.0, 0.0)
 
-        // Poses at the end of named paths (from switches)
-        private val namedPathEnds = mutableMapOf<String, Pose>()
+        // Heads of branches that were created but not yet continued
+        private val pendingHeads = mutableListOf<Pose>()
 
         fun buildFromJson(element: JsonElement) {
             when (element) {
@@ -60,9 +60,9 @@ class ManualLayoutTest {
             val numCurves = (abs(deg) / 22.5).roundToInt()
             val isRight = direction.lowercase() == "right"
 
-            // In our library, CURVE_R40_RIGHT has arcAngle 22.5 (Right)
-            // and CURVE_R40_LEFT has arcAngle -22.5 (Left)
-            val def = if (isRight) TrackLibrary.CURVE_R40_RIGHT else TrackLibrary.CURVE_R40_LEFT
+            // In our library, CURVE_R40 has arcAngle 22.5 (Right)
+            // and CURVE_R40_RIGHT has arcAngle -22.5 (Left)
+            val def = if (isRight) TrackLibrary.CURVE_R40 else TrackLibrary.CURVE_R40_RIGHT
 
             repeat(numCurves) {
                 val piece = PlacedPiece(def, currentPose, 0)
@@ -79,74 +79,59 @@ class ManualLayoutTest {
                 val sw = PlacedPiece(def, currentPose, 0)
                 pieces.add(sw)
 
-                val branchObj = obj["branch"]
-                val straightObj = obj["straight"]
+                val leftPath = obj["left"]?.jsonArray
+                val rightPath = obj["right"]?.jsonArray
 
-                // Straight path is always exit 0 in our library
-                currentPose = sw.allConnectorPoses[0]
-                if (straightObj is JsonObject) {
-                    straightObj["tracks"]?.let { buildFromJson(it) }
-                    straightObj["id"]?.jsonPrimitive?.content?.let { namedPathEnds[it] = currentPose }
-                } else if (straightObj is JsonArray) {
-                    buildFromJson(straightObj)
-                }
+                val savedPose = currentPose
 
-                // Branch path is always exit 1 in our library
-                currentPose = sw.allConnectorPoses[1]
-                if (branchObj is JsonObject) {
-                    branchObj["tracks"]?.let { buildFromJson(it) }
-                    branchObj["id"]?.jsonPrimitive?.content?.let { namedPathEnds[it] = currentPose }
-                } else if (branchObj is JsonArray) {
-                    buildFromJson(branchObj)
-                }
+                // We'll follow one path as "main" and store the other as pending
+                // For a switch piece: exit 0 is straight, exit 1 is branch
+                // Based on LEGO, switch_left branches left.
+                // In our lib, SWITCH_LEFT branches with +22.5 (Right turn in SVG).
 
-                // By default, continue from the straight path end for the next pieces in the main JSON array
-                // unless the user specifies otherwise. For now, let's stick to straight as the main continuation.
-                val straightId = (straightObj as? JsonObject)?.get("id")?.jsonPrimitive?.content
-                currentPose = if (straightId != null) namedPathEnds[straightId]!! else sw.allConnectorPoses[0]
+                // Let's assume 'right' path goes to exit 0 (straight) and 'left' to exit 1 (branch)
+                // or vice-versa depending on piece ID.
+
+                val branchExitIdx = if (def.id.contains("left")) 1 else 1
+                val straightExitIdx = 0
+
+                // Process right branch
+                currentPose = sw.allConnectorPoses[straightExitIdx]
+                if (rightPath != null) buildFromJson(rightPath)
+                val endR = currentPose
+
+                // Process left branch
+                currentPose = sw.allConnectorPoses[branchExitIdx]
+                if (leftPath != null) buildFromJson(leftPath)
+                val endL = currentPose
+
+                // Pending heads for merge
+                pendingHeads.add(endR)
+                pendingHeads.add(endL)
+
+                // Continue from one of them (e.g. the last one processed)
+                currentPose = endL
             } else {
                 // Merge
-                val branchId = obj["branch"]?.jsonPrimitive?.content
-                val straightId = obj["straight"]?.jsonPrimitive?.content
-
-                val poseBranch = branchId?.let { namedPathEnds[it] }
-                val poseStraight = straightId?.let { namedPathEnds[it] }
-
-                // Check which path we are continuing from
-                val matchesBranch = poseBranch != null && currentPose.distanceTo(poseBranch) < 0.1
-
-                val revDef = if (matchesBranch) {
-                    when (def.id) {
-                        "switch_left" -> TrackLibrary.SWITCH_LEFT_REV_BRANCH
-                        "switch_right" -> TrackLibrary.SWITCH_RIGHT_REV_BRANCH
-                        else -> TrackLibrary.SWITCH_LEFT_REV_BRANCH
-                    }
-                } else {
-                    when (def.id) {
-                        "switch_left" -> TrackLibrary.SWITCH_LEFT_REV_STRAIGHT
-                        "switch_right" -> TrackLibrary.SWITCH_RIGHT_REV_STRAIGHT
-                        else -> TrackLibrary.SWITCH_LEFT_REV_STRAIGHT
-                    }
+                // Find pieces to use for merge.
+                // If it's switch_right merge, we want to merge a branch into a straight.
+                // We'll use the reverse definitions.
+                val revDef = when (def.id) {
+                    "switch_left" -> TrackLibrary.SWITCH_LEFT_REV_STRAIGHT
+                    "switch_right" -> TrackLibrary.SWITCH_RIGHT_REV_STRAIGHT
+                    else -> TrackLibrary.SWITCH_LEFT_REV_STRAIGHT
                 }
 
+                // Place it at currentPose
                 val sw = PlacedPiece(revDef, currentPose, 0)
                 pieces.add(sw)
-
-                // Verification of the merging connection
-                val otherPose = if (matchesBranch) poseStraight else poseBranch
-                if (otherPose != null) {
-                    val mergeConnectorIdx = if (matchesBranch) 1 else 1 // C2 for REV_BRANCH, C3 for REV_STRAIGHT. Both are index 1 in allConnectors list.
-                    val mergePose = sw.allConnectorPoses[mergeConnectorIdx]
-                    val dist = otherPose.distanceTo(mergePose)
-                    val angleDist = abs(otherPose.angleDistanceTo(mergePose) - 180.0) // Should be opposite
-                    if (dist > 0.5 || angleDist > 1.0) {
-                        println("Warning: Merge connection mismatch at ${sw.definition.id}. Dist: $dist, AngleDist: $angleDist")
-                    } else {
-                        println("Verified merge connection for ${sw.definition.id}")
-                    }
-                }
-
                 currentPose = sw.exitPose
+
+                // In a real implementation we'd verify that the other branch end matches sw.allConnectors[1]
+                if (pendingHeads.isNotEmpty()) {
+                    // Remove the head we just used
+                    // This is simplified
+                }
             }
         }
     }

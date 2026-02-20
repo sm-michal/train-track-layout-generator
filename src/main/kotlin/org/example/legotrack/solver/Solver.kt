@@ -78,7 +78,7 @@ class Solver(
         inventory.keys.forEach { id ->
             when (id) {
                 "straight" -> pieceOptions[id] = listOf(TrackLibrary.STRAIGHT)
-                "curve_r40" -> pieceOptions[id] = listOf(TrackLibrary.CURVE_R40_RIGHT, TrackLibrary.CURVE_R40_LEFT)
+                "curve_r40" -> pieceOptions[id] = listOf(TrackLibrary.CURVE_R40, TrackLibrary.CURVE_R40_RIGHT)
                 "switch_left" -> pieceOptions[id] = listOf(
                     TrackLibrary.SWITCH_LEFT,
                     TrackLibrary.SWITCH_LEFT_REV_STRAIGHT,

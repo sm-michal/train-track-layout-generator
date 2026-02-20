@@ -14,7 +14,7 @@ class SvgRendererTest {
         var currentPose = Pose(0.0, 0.0, 0.0)
 
         repeat(16) {
-            val piece = PlacedPiece(TrackLibrary.CURVE_R40_RIGHT, currentPose)
+            val piece = PlacedPiece(TrackLibrary.CURVE_R40, currentPose)
             pieces.add(piece)
             currentPose = piece.exitPose
         }

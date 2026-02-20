@@ -14,7 +14,7 @@ class SidingDebugTest {
 
         // 1. 8 curves (180 deg turn)
         repeat(8) {
-            val piece = PlacedPiece(TrackLibrary.CURVE_R40_RIGHT, currentPose, 0)
+            val piece = PlacedPiece(TrackLibrary.CURVE_R40, currentPose, 0)
             pieces.add(piece)
             currentPose = piece.exitPose
         }
@@ -28,7 +28,7 @@ class SidingDebugTest {
 
         // 3. 8 curves (180 deg turn)
         repeat(8) {
-            val piece = PlacedPiece(TrackLibrary.CURVE_R40_RIGHT, currentPose, 0)
+            val piece = PlacedPiece(TrackLibrary.CURVE_R40, currentPose, 0)
             pieces.add(piece)
             currentPose = piece.exitPose
         }
@@ -107,7 +107,7 @@ class SidingDebugTest {
 
         // 1. 8 curves (180 deg turn)
         repeat(8) {
-            val piece = PlacedPiece(TrackLibrary.CURVE_R40_RIGHT, currentPose, 0)
+            val piece = PlacedPiece(TrackLibrary.CURVE_R40, currentPose, 0)
             pieces.add(piece)
             currentPose = piece.exitPose
         }
@@ -140,7 +140,7 @@ class SidingDebugTest {
 
         // 3. 8 curves (180 deg turn)
         repeat(8) {
-            val piece = PlacedPiece(TrackLibrary.CURVE_R40_RIGHT, currentPose, 0)
+            val piece = PlacedPiece(TrackLibrary.CURVE_R40, currentPose, 0)
             pieces.add(piece)
             currentPose = piece.exitPose
         }

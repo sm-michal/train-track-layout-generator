@@ -16,31 +16,23 @@
     },
     {
         "switch_left": {
-            "branch": {
-                "id": "1b",
-                "tracks": [
-                    {
-                        "turn": {
-                            "rad": 40,
-                            "deg": 45,
-                            "direction": "right"
-                        }
+            "left": [
+                {
+                    "turn": {
+                        "rad": 40,
+                        "deg": 45,
+                        "direction": "right"
                     }
-                ]
-            },
-            "straight": {
-                "id": "1s",
-                "tracks": [
-                    { "straight": 2 }
-                ]
-            },
+                }
+            ],
+            "right": [
+                { "straight": 2 }
+            ],
             "orientation": "switch"
         }
     },
     {
         "switch_right": {
-            "branch": "1b",
-            "straight": "1s",
             "orientation": "merge"
         }
     }
