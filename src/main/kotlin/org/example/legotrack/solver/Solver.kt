@@ -2,8 +2,6 @@ package org.example.legotrack.solver
 
 import kotlinx.coroutines.*
 import org.example.legotrack.model.*
-import java.util.Collections
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.*
 
@@ -15,11 +13,11 @@ class Solver(
 ) {
     private val globalFeatureUsage = mutableMapOf<String, Int>().withDefault { 0 }
     private val scorer = LayoutScorer(globalFeatureUsage)
-    private val solutions = Collections.synchronizedList(mutableListOf<ScoredSolution>())
+    private val solutions = java.util.Collections.synchronizedList(mutableListOf<ScoredSolution>())
     private var deadEndSolutionCount = 0
     private val nodesExplored = AtomicLong(0)
-    private val seenSolutionSequences = Collections.synchronizedSet(mutableSetOf<List<String>>())
-    private val sidingCache = ConcurrentHashMap<String, List<PlacedPiece>?>()
+    private val seenSolutionSequences = java.util.Collections.synchronizedSet(mutableSetOf<List<String>>())
+    private val sidingCache = java.util.concurrent.ConcurrentHashMap<String, List<PlacedPiece>?>()
     private val startPose = Pose(0.0, 0.0, 0.0)
 
     class SpatialGrid(val cellSize: Double = 32.0) {
@@ -113,7 +111,8 @@ class Solver(
         globalFeatureUsage.clear()
         val currentInventory = inventory.toMutableMap()
         val grid = SpatialGrid()
-        backtrackParallel(startPose, currentInventory, mutableListOf(), grid, 0, IncrementalFeatures())
+        val totalInventorySize = inventory.values.sum()
+        backtrackParallel(startPose, currentInventory, mutableListOf(), grid, 0, IncrementalFeatures(), totalInventorySize)
 
         solutions.toList().sortedByDescending { it.scoreBreakdown.totalScore }
     }
@@ -124,7 +123,8 @@ class Solver(
         path: MutableList<PlacedPiece>,
         grid: SpatialGrid,
         depth: Int,
-        incFeat: IncrementalFeatures
+        incFeat: IncrementalFeatures,
+        totalInventorySize: Int
     ) {
         if (solutions.size >= maxSolutions) return
 
@@ -145,7 +145,7 @@ class Solver(
                         }
                     }
                 }
-                resolveUnusedExits(unusedExits, remaining, path, grid)
+                resolveUnusedExits(unusedExits, remaining, path, grid, totalInventorySize)
                 return
             }
         }
@@ -174,12 +174,12 @@ class Solver(
                         val nextGrid = grid.copy()
                         if (nextPath.size > 1) nextGrid.add(nextPiece)
 
-                        backtrackParallel(nextPiece.exitPose, nextRemaining, nextPath, nextGrid, depth + 1, scorer.updateIncremental(incFeat, nextPiece))
+                        backtrackParallel(nextPiece.exitPose, nextRemaining, nextPath, nextGrid, depth + 1, scorer.updateIncremental(incFeat, nextPiece), totalInventorySize)
                     }
                 }
             }
         } else {
-            backtrackSerial(currentPose, remaining, path, grid, incFeat)
+            backtrackSerial(currentPose, remaining, path, grid, incFeat, totalInventorySize)
         }
     }
 
@@ -188,7 +188,8 @@ class Solver(
         remaining: MutableMap<String, Int>,
         path: MutableList<PlacedPiece>,
         grid: SpatialGrid,
-        incFeat: IncrementalFeatures
+        incFeat: IncrementalFeatures,
+        totalInventorySize: Int
     ) {
         if (solutions.size >= maxSolutions) return
 
@@ -209,7 +210,7 @@ class Solver(
                         }
                     }
                 }
-                resolveUnusedExitsSerial(unusedExits, remaining, path, grid)
+                resolveUnusedExitsSerial(unusedExits, remaining, path, grid, totalInventorySize)
                 return
             }
         }
@@ -248,7 +249,7 @@ class Solver(
             path.add(nextPiece)
             if (path.size > 1) grid.add(nextPiece)
 
-            backtrackSerial(nextPiece.exitPose, remaining, path, grid, scorer.updateIncremental(incFeat, nextPiece))
+            backtrackSerial(nextPiece.exitPose, remaining, path, grid, scorer.updateIncremental(incFeat, nextPiece), totalInventorySize)
 
             if (path.size > 1) grid.remove(nextPiece)
             path.removeAt(path.size - 1)
@@ -307,26 +308,30 @@ class Solver(
         unusedExits: List<Pair<Int, PlacedPiece>>,
         remaining: MutableMap<String, Int>,
         currentPath: List<PlacedPiece>,
-        grid: SpatialGrid
+        grid: SpatialGrid,
+        totalInventorySize: Int
     ) {
-        resolveUnusedExitsSerial(unusedExits, remaining, currentPath, grid)
+        resolveUnusedExitsSerial(unusedExits, remaining, currentPath, grid, totalInventorySize)
     }
 
     private fun resolveUnusedExitsSerial(
         unusedExits: List<Pair<Int, PlacedPiece>>,
         remaining: MutableMap<String, Int>,
         currentPath: List<PlacedPiece>,
-        grid: SpatialGrid
+        grid: SpatialGrid,
+        totalInventorySize: Int
     ) {
         if (unusedExits.isEmpty()) {
-            val sequence = canonicalizer.getPathSequence(currentPath)
-            val hasDeadEnds = currentPath.any { it.isDeadEnd || it.deadEndExits.isNotEmpty() }
-            val canonical = canonicalizer.getCanonicalSequence(sequence, isCycle = !hasDeadEnds)
-            if (seenSolutionSequences.add(canonical)) {
-                val features = scorer.extractFeatures(currentPath)
-                val breakdown = scorer.getScoreBreakdown(features)
-                solutions.add(ScoredSolution(currentPath.toList(), breakdown))
-                updateGlobalUsage(currentPath)
+            if (totalInventorySize - currentPath.size <= 5) {
+                val sequence = canonicalizer.getPathSequence(currentPath)
+                val hasDeadEnds = currentPath.any { it.isDeadEnd || it.deadEndExits.isNotEmpty() }
+                val canonical = canonicalizer.getCanonicalSequence(sequence, isCycle = !hasDeadEnds)
+                if (seenSolutionSequences.add(canonical)) {
+                    val features = scorer.extractFeatures(currentPath)
+                    val breakdown = scorer.getScoreBreakdown(features)
+                    solutions.add(ScoredSolution(currentPath.toList(), breakdown))
+                    updateGlobalUsage(currentPath)
+                }
             }
             return
         }
@@ -345,7 +350,7 @@ class Solver(
             val maxSiding = minOf(20, remaining.values.sum())
             if (findPathBetweenBacktrack(pose1, targetPose, remaining, tempPath, sidingPath, grid, maxSiding)) {
                 val nextUnused = unusedExits.filterIndexed { index, _ -> index != 0 && index != i }
-                resolveUnusedExitsSerial(nextUnused, remaining, tempPath, grid)
+                resolveUnusedExitsSerial(nextUnused, remaining, tempPath, grid, totalInventorySize)
 
                 for (p in sidingPath) {
                     val invId = getInventoryId(p.definition.id)
@@ -360,7 +365,7 @@ class Solver(
             val (exitIdx, switch) = unusedExits[0]
             val startPose = switch.allConnectorPoses[exitIdx]
             val currentBranch = mutableListOf<PlacedPiece>()
-            searchBranchRecursive(switch, exitIdx, startPose, remaining, currentPath, currentBranch, 0, unusedExits.drop(1), grid)
+            searchBranchRecursive(switch, exitIdx, startPose, remaining, currentPath, currentBranch, 0, unusedExits.drop(1), grid, totalInventorySize)
         }
     }
 
@@ -373,7 +378,8 @@ class Solver(
         currentBranch: MutableList<PlacedPiece>,
         depth: Int,
         otherUnused: List<Pair<Int, PlacedPiece>>,
-        grid: SpatialGrid
+        grid: SpatialGrid,
+        totalInventorySize: Int
     ) {
         if (depth <= 4) {
             val pathWithDeadEnd = if (currentBranch.isEmpty()) {
@@ -388,17 +394,19 @@ class Solver(
             }
 
             if (otherUnused.isEmpty()) {
-                val sequence = canonicalizer.getPathSequence(pathWithDeadEnd)
-                val canonical = canonicalizer.getCanonicalSequence(sequence, isCycle = false)
-                if (seenSolutionSequences.add(canonical)) {
-                    val features = scorer.extractFeatures(pathWithDeadEnd)
-                    val breakdown = scorer.getScoreBreakdown(features)
-                    solutions.add(ScoredSolution(pathWithDeadEnd, breakdown))
-                    updateGlobalUsage(pathWithDeadEnd)
-                    deadEndSolutionCount++
+                if (totalInventorySize - pathWithDeadEnd.size <= 5) {
+                    val sequence = canonicalizer.getPathSequence(pathWithDeadEnd)
+                    val canonical = canonicalizer.getCanonicalSequence(sequence, isCycle = false)
+                    if (seenSolutionSequences.add(canonical)) {
+                        val features = scorer.extractFeatures(pathWithDeadEnd)
+                        val breakdown = scorer.getScoreBreakdown(features)
+                        solutions.add(ScoredSolution(pathWithDeadEnd, breakdown))
+                        updateGlobalUsage(pathWithDeadEnd)
+                        deadEndSolutionCount++
+                    }
                 }
             } else {
-                resolveUnusedExitsSerial(otherUnused, remaining, pathWithDeadEnd, grid)
+                resolveUnusedExitsSerial(otherUnused, remaining, pathWithDeadEnd, grid, totalInventorySize)
             }
         }
 
@@ -417,7 +425,7 @@ class Solver(
                         remaining[id] = count - 1
                         currentBranch.add(nextPiece)
                         grid.add(nextPiece)
-                        searchBranchRecursive(switch, exitIdx, nextPiece.exitPose, remaining, mainPath, currentBranch, depth + 1, otherUnused, grid)
+                        searchBranchRecursive(switch, exitIdx, nextPiece.exitPose, remaining, mainPath, currentBranch, depth + 1, otherUnused, grid, totalInventorySize)
                         grid.remove(nextPiece)
                         currentBranch.removeAt(currentBranch.size - 1)
                         remaining[id] = count
