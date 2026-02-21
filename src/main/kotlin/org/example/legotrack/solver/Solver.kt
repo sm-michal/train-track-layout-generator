@@ -78,7 +78,7 @@ class Solver(
         inventory.keys.forEach { id ->
             when (id) {
                 "straight" -> pieceOptions[id] = listOf(TrackLibrary.STRAIGHT)
-                "curve_r40" -> pieceOptions[id] = listOf(TrackLibrary.CURVE_R40, TrackLibrary.CURVE_R40_RIGHT)
+                "curve_r40" -> pieceOptions[id] = listOf(TrackLibrary.CURVE_R40, TrackLibrary.CURVE_R40_LEFT)
                 "switch_left" -> pieceOptions[id] = listOf(
                     TrackLibrary.SWITCH_LEFT,
                     TrackLibrary.SWITCH_LEFT_REV_STRAIGHT,
@@ -146,7 +146,7 @@ class Solver(
         for (a in angles) {
             val n = (a / 22.5).roundToInt()
             addSeed(List(n) { TrackLibrary.CURVE_R40 to 0 })
-            addSeed(List(n) { TrackLibrary.CURVE_R40_RIGHT to 0 })
+            addSeed(List(n) { TrackLibrary.CURVE_R40_LEFT to 0 })
         }
 
         // 4. Switch starts

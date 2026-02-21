@@ -36,11 +36,11 @@ class SidingDebugTest {
         // Now we should be at roughly (-96, 0, 0)
         println("Pose before siding: $currentPose")
 
-        // 4. Switch Left (Diverge)
-        val switchLeft = PlacedPiece(TrackLibrary.SWITCH_LEFT, currentPose, 0)
-        pieces.add(switchLeft)
-        val mainPathStart = switchLeft.exitPose
-        val branchPathStart = switchLeft.allConnectorPoses[1] // Branch exit
+        // 4. Switch Right (Diverge) - Branches towards +Y (Right)
+        val switchRight = PlacedPiece(TrackLibrary.SWITCH_RIGHT, currentPose, 0)
+        pieces.add(switchRight)
+        val mainPathStart = switchRight.exitPose
+        val branchPathStart = switchRight.allConnectorPoses[1] // Branch exit
 
         // 5a. Main Line Path: 2 straights
         var mainPose = mainPathStart
@@ -50,21 +50,19 @@ class SidingDebugTest {
             mainPose = piece.exitPose
         }
 
-        // 5b. Branch Path: 2 curves (Right)
+        // 5b. Branch Path: 2 curves (Left) - Turns back towards -Y (Main)
         var branchPose = branchPathStart
         val branchPieces = mutableListOf<PlacedPiece>()
         repeat(2) {
-            val piece = PlacedPiece(TrackLibrary.CURVE_R40_RIGHT, branchPose, 0)
+            val piece = PlacedPiece(TrackLibrary.CURVE_R40_LEFT, branchPose, 0)
             branchPieces.add(piece)
             branchPose = piece.exitPose
         }
-        // We don't add branchPieces to the 'pieces' list yet, as they are part of the siding connection
 
-        // 6. Switch Right (Merge)
-        // We use SWITCH_RIGHT_REV_STRAIGHT as the piece in the main loop
-        val switchRight = PlacedPiece(TrackLibrary.SWITCH_RIGHT_REV_STRAIGHT, mainPose, 0)
-        pieces.add(switchRight)
-        val finalPose = switchRight.exitPose
+        // 6. Switch Left (Merge) - Branches towards siding from main track
+        val switchMerge = PlacedPiece(TrackLibrary.SWITCH_LEFT_REV_STRAIGHT, mainPose, 0)
+        pieces.add(switchMerge)
+        val finalPose = switchMerge.exitPose
 
         println("Final Pose: $finalPose")
 
@@ -76,7 +74,7 @@ class SidingDebugTest {
         println("Angle to start: $angleToStart")
 
         // Check siding connection
-        val mergeBranchEntry = switchRight.allConnectorPoses[1] // C3 is Branch Entry
+        val mergeBranchEntry = switchMerge.allConnectorPoses[1] // C3 is Branch Entry
         println("Branch path end: $branchPose")
         println("Merge branch entry: $mergeBranchEntry")
 
@@ -94,9 +92,6 @@ class SidingDebugTest {
         assert(distToStart < 0.1) { "Main loop not closed: $distToStart" }
         assert(angleToStart < 0.1) { "Main loop angle not closed: $angleToStart" }
         assert(sidingDist < 0.1) { "Siding not closed: $sidingDist" }
-        // For the siding, they should be 180 degrees apart if one is OUT and one is IN?
-        // Let's see what the current code thinks.
-        // If they are 180 deg apart, angleDistanceTo will be 180.
         assert(sidingAngle < 0.1 || abs(sidingAngle - 180.0) < 0.1) { "Siding angle not aligned: $sidingAngle" }
     }
 
@@ -113,7 +108,7 @@ class SidingDebugTest {
         }
 
         // 2. First Siding
-        val sw1 = PlacedPiece(TrackLibrary.SWITCH_LEFT, currentPose, 0)
+        val sw1 = PlacedPiece(TrackLibrary.SWITCH_RIGHT, currentPose, 0)
         pieces.add(sw1)
         val branchStart1 = sw1.allConnectorPoses[1]
 
@@ -125,16 +120,16 @@ class SidingDebugTest {
             mainPose1 = piece.exitPose
         }
 
-        // Branch line: 2 curves (right)
+        // Branch line: 2 curves (left)
         var branchPose1 = branchStart1
         val branchPieces1 = mutableListOf<PlacedPiece>()
         repeat(2) {
-            val piece = PlacedPiece(TrackLibrary.CURVE_R40_RIGHT, branchPose1, 0)
+            val piece = PlacedPiece(TrackLibrary.CURVE_R40_LEFT, branchPose1, 0)
             branchPieces1.add(piece)
             branchPose1 = piece.exitPose
         }
 
-        val sw2 = PlacedPiece(TrackLibrary.SWITCH_RIGHT_REV_STRAIGHT, mainPose1, 0)
+        val sw2 = PlacedPiece(TrackLibrary.SWITCH_LEFT_REV_STRAIGHT, mainPose1, 0)
         pieces.add(sw2)
         currentPose = sw2.exitPose
 
@@ -146,7 +141,7 @@ class SidingDebugTest {
         }
 
         // 4. Second Siding
-        val sw3 = PlacedPiece(TrackLibrary.SWITCH_LEFT, currentPose, 0)
+        val sw3 = PlacedPiece(TrackLibrary.SWITCH_RIGHT, currentPose, 0)
         pieces.add(sw3)
         val branchStart2 = sw3.allConnectorPoses[1]
 
@@ -158,16 +153,16 @@ class SidingDebugTest {
             mainPose2 = piece.exitPose
         }
 
-        // Branch line: 2 curves (right)
+        // Branch line: 2 curves (left)
         var branchPose2 = branchStart2
         val branchPieces2 = mutableListOf<PlacedPiece>()
         repeat(2) {
-            val piece = PlacedPiece(TrackLibrary.CURVE_R40_RIGHT, branchPose2, 0)
+            val piece = PlacedPiece(TrackLibrary.CURVE_R40_LEFT, branchPose2, 0)
             branchPieces2.add(piece)
             branchPose2 = piece.exitPose
         }
 
-        val sw4 = PlacedPiece(TrackLibrary.SWITCH_RIGHT_REV_STRAIGHT, mainPose2, 0)
+        val sw4 = PlacedPiece(TrackLibrary.SWITCH_LEFT_REV_STRAIGHT, mainPose2, 0)
         pieces.add(sw4)
         currentPose = sw4.exitPose
 
@@ -191,5 +186,4 @@ class SidingDebugTest {
         assert(siding1Dist < 0.1)
         assert(siding2Dist < 0.1)
     }
-
 }

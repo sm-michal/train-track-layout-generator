@@ -61,8 +61,8 @@ class ManualLayoutTest {
             val isRight = direction.lowercase() == "right"
 
             // In our library, CURVE_R40 has arcAngle 22.5 (Right)
-            // and CURVE_R40_RIGHT has arcAngle -22.5 (Left)
-            val def = if (isRight) TrackLibrary.CURVE_R40 else TrackLibrary.CURVE_R40_RIGHT
+            // and CURVE_R40_LEFT has arcAngle -22.5 (Left)
+            val def = if (isRight) TrackLibrary.CURVE_R40 else TrackLibrary.CURVE_R40_LEFT
 
             repeat(numCurves) {
                 val piece = PlacedPiece(def, currentPose, 0)
@@ -84,33 +84,33 @@ class ManualLayoutTest {
 
                 val savedPose = currentPose
 
-                // We'll follow one path as "main" and store the other as pending
                 // For a switch piece: exit 0 is straight, exit 1 is branch
-                // Based on LEGO, switch_left branches left.
-                // In our lib, SWITCH_LEFT branches with +22.5 (Right turn in SVG).
+                // switch_left: left branch is 'left' (idx 1), straight is 'right' (idx 0)
+                // switch_right: right branch is 'right' (idx 1), straight is 'left' (idx 0)
 
-                // Let's assume 'right' path goes to exit 0 (straight) and 'left' to exit 1 (branch)
-                // or vice-versa depending on piece ID.
+                val isLeftSwitch = def.id.contains("left")
+                val straightPath = if (isLeftSwitch) rightPath else leftPath
+                val branchPath = if (isLeftSwitch) leftPath else rightPath
 
-                val branchExitIdx = if (def.id.contains("left")) 1 else 1
                 val straightExitIdx = 0
+                val branchExitIdx = 1
 
-                // Process right branch
+                // Process straight path
                 currentPose = sw.allConnectorPoses[straightExitIdx]
-                if (rightPath != null) buildFromJson(rightPath)
-                val endR = currentPose
+                if (straightPath != null) buildFromJson(straightPath)
+                val endStraight = currentPose
 
-                // Process left branch
+                // Process branch path
                 currentPose = sw.allConnectorPoses[branchExitIdx]
-                if (leftPath != null) buildFromJson(leftPath)
-                val endL = currentPose
+                if (branchPath != null) buildFromJson(branchPath)
+                val endBranch = currentPose
 
                 // Pending heads for merge
-                pendingHeads.add(endR)
-                pendingHeads.add(endL)
+                pendingHeads.add(endStraight)
+                pendingHeads.add(endBranch)
 
                 // Continue from one of them (e.g. the last one processed)
-                currentPose = endL
+                currentPose = endBranch
             } else {
                 // Merge
                 // Find pieces to use for merge.
