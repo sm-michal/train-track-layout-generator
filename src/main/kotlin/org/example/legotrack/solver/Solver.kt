@@ -17,7 +17,7 @@ class Solver(
     private var deadEndSolutionCount = 0
     private val nodesExplored = AtomicLong(0)
     private val seenSolutionSequences = java.util.Collections.synchronizedSet(mutableSetOf<List<String>>())
-    private val sidingCache = java.util.concurrent.ConcurrentHashMap<String, List<PlacedPiece>?>()
+    private val sidingCache = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
     private val startPose = Pose(0.0, 0.0, 0.0)
 
     class SpatialGrid(val cellSize: Double = 32.0) {
@@ -102,6 +102,62 @@ class Solver(
     private val maxPieceLength: Double = 32.0 // Switch straight is 32
     private val maxPieceAngle: Double = 22.5 // Max angle of a single piece
 
+    private data class InitialState(
+        val pose: Pose,
+        val remaining: MutableMap<String, Int>,
+        val path: MutableList<PlacedPiece>,
+        val grid: SpatialGrid,
+        val incFeat: IncrementalFeatures
+    )
+
+    private fun generateInitialStates(): List<InitialState> {
+        val states = mutableListOf<InitialState>()
+
+        // 1. Empty Start
+        states.add(InitialState(startPose, inventory.toMutableMap(), mutableListOf(), SpatialGrid(), IncrementalFeatures()))
+
+        fun addSeed(pieceDefs: List<Pair<TrackPieceDefinition, Int>>) {
+            val currentRemaining = inventory.toMutableMap()
+            var currentPose = startPose
+            val currentPath = mutableListOf<PlacedPiece>()
+            val currentGrid = SpatialGrid()
+            var currentFeat = IncrementalFeatures()
+
+            for ((def, exitIdx) in pieceDefs) {
+                val invId = getInventoryId(def.id)
+                val count = currentRemaining[invId] ?: 0
+                if (count <= 0) return
+
+                val piece = PlacedPiece(def, currentPose, exitIdx)
+                currentRemaining[invId] = count - 1
+                currentPath.add(piece)
+                currentGrid.add(piece)
+                currentFeat = scorer.updateIncremental(currentFeat, piece)
+                currentPose = piece.exitPose
+            }
+            states.add(InitialState(currentPose, currentRemaining, currentPath, currentGrid, currentFeat))
+        }
+
+        // 2. Long Straight
+        addSeed(List(4) { TrackLibrary.STRAIGHT to 0 })
+
+        // 3. Turns (90, 135, 180, 225)
+        val angles = listOf(90.0, 135.0, 180.0, 225.0)
+        for (a in angles) {
+            val n = (a / 22.5).roundToInt()
+            addSeed(List(n) { TrackLibrary.CURVE_R40 to 0 })
+            addSeed(List(n) { TrackLibrary.CURVE_R40_RIGHT to 0 })
+        }
+
+        // 4. Switch starts
+        addSeed(listOf(TrackLibrary.SWITCH_LEFT to 0))
+        addSeed(listOf(TrackLibrary.SWITCH_LEFT to 1))
+        addSeed(listOf(TrackLibrary.SWITCH_RIGHT to 0))
+        addSeed(listOf(TrackLibrary.SWITCH_RIGHT to 1))
+
+        return states
+    }
+
     fun solve(): List<ScoredSolution> = runBlocking(Dispatchers.Default) {
         solutions.clear()
         deadEndSolutionCount = 0
@@ -109,10 +165,25 @@ class Solver(
         seenSolutionSequences.clear()
         sidingCache.clear()
         globalFeatureUsage.clear()
-        val currentInventory = inventory.toMutableMap()
-        val grid = SpatialGrid()
+
         val totalInventorySize = inventory.values.sum()
-        backtrackParallel(startPose, currentInventory, mutableListOf(), grid, 0, IncrementalFeatures(), totalInventorySize)
+        val initialStates = generateInitialStates()
+
+        coroutineScope {
+            for (state in initialStates) {
+                launch {
+                    backtrackParallel(
+                        state.pose,
+                        state.remaining,
+                        state.path,
+                        state.grid,
+                        0,
+                        state.incFeat,
+                        totalInventorySize
+                    )
+                }
+            }
+        }
 
         solutions.toList().sortedByDescending { it.scoreBreakdown.totalScore }
     }
@@ -454,7 +525,7 @@ class Solver(
         val relRot = (targetPose.rotation - currentPose.rotation + 360.0) % 360.0
         val cacheKey = "${(localX / 0.1).toInt()}:${(localY / 0.1).toInt()}:${(relRot / 0.1).toInt()}:$maxDepth"
 
-        if (sidingCache.containsKey(cacheKey) && sidingCache[cacheKey] == null) return false
+        if (sidingCache.containsKey(cacheKey)) return false
 
         val distToTarget = currentPose.distanceTo(targetPose)
         if (distToTarget < tolerancePos &&
@@ -509,7 +580,7 @@ class Solver(
             path.removeAt(path.size - 1)
             remaining[inventoryId] = count
         }
-        sidingCache[cacheKey] = null
+        sidingCache[cacheKey] = true
         return false
     }
 
