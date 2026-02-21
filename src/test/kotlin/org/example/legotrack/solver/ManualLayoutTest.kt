@@ -19,8 +19,7 @@ class ManualLayoutTest {
         val pieces = mutableListOf<PlacedPiece>()
         var currentPose = Pose(0.0, 0.0, 0.0)
 
-        // Heads of branches that were created but not yet continued
-        private val pendingHeads = mutableListOf<Pose>()
+        private val namedPathEnds = mutableMapOf<String, Pose>()
 
         fun buildFromJson(element: JsonElement) {
             when (element) {
@@ -60,8 +59,6 @@ class ManualLayoutTest {
             val numCurves = (abs(deg) / 22.5).roundToInt()
             val isRight = direction.lowercase() == "right"
 
-            // In our library, CURVE_R40 has arcAngle 22.5 (Right)
-            // and CURVE_R40_LEFT has arcAngle -22.5 (Left)
             val def = if (isRight) TrackLibrary.CURVE_R40 else TrackLibrary.CURVE_R40_LEFT
 
             repeat(numCurves) {
@@ -75,63 +72,49 @@ class ManualLayoutTest {
             val orientation = obj["orientation"]?.jsonPrimitive?.content ?: "switch"
 
             if (orientation == "switch") {
-                // Diverge
                 val sw = PlacedPiece(def, currentPose, 0)
                 pieces.add(sw)
 
-                val leftPath = obj["left"]?.jsonArray
-                val rightPath = obj["right"]?.jsonArray
+                val straightObj = obj["straight"]?.jsonObject
+                val branchObj = obj["branch"]?.jsonObject
 
-                val savedPose = currentPose
-
-                // For a switch piece: exit 0 is straight, exit 1 is branch
-                // switch_left: left branch is 'left' (idx 1), straight is 'right' (idx 0)
-                // switch_right: right branch is 'right' (idx 1), straight is 'left' (idx 0)
-
-                val isLeftSwitch = def.id.contains("left")
-                val straightPath = if (isLeftSwitch) rightPath else leftPath
-                val branchPath = if (isLeftSwitch) leftPath else rightPath
-
-                val straightExitIdx = 0
-                val branchExitIdx = 1
+                // Exit 0 is straight, Exit 1 is branch
 
                 // Process straight path
-                currentPose = sw.allConnectorPoses[straightExitIdx]
-                if (straightPath != null) buildFromJson(straightPath)
+                currentPose = sw.allConnectorPoses[0]
+                straightObj?.get("content")?.let { buildFromJson(it) }
+                straightObj?.get("id")?.jsonPrimitive?.content?.let { namedPathEnds[it] = currentPose }
                 val endStraight = currentPose
 
                 // Process branch path
-                currentPose = sw.allConnectorPoses[branchExitIdx]
-                if (branchPath != null) buildFromJson(branchPath)
+                currentPose = sw.allConnectorPoses[1]
+                branchObj?.get("content")?.let { buildFromJson(it) }
+                branchObj?.get("id")?.jsonPrimitive?.content?.let { namedPathEnds[it] = currentPose }
                 val endBranch = currentPose
 
-                // Pending heads for merge
-                pendingHeads.add(endStraight)
-                pendingHeads.add(endBranch)
-
-                // Continue from one of them (e.g. the last one processed)
+                // Convention: continue from branch end
                 currentPose = endBranch
             } else {
                 // Merge
-                // Find pieces to use for merge.
-                // If it's switch_right merge, we want to merge a branch into a straight.
-                // We'll use the reverse definitions.
-                val revDef = when (def.id) {
-                    "switch_left" -> TrackLibrary.SWITCH_LEFT_REV_STRAIGHT
-                    "switch_right" -> TrackLibrary.SWITCH_RIGHT_REV_STRAIGHT
-                    else -> TrackLibrary.SWITCH_LEFT_REV_STRAIGHT
+                val straightId = obj["straight"]?.jsonObject?.get("id")?.jsonPrimitive?.content
+                val branchId = obj["branch"]?.jsonObject?.get("id")?.jsonPrimitive?.content
+
+                val straightEnd = straightId?.let { namedPathEnds[it] }
+                val branchEnd = branchId?.let { namedPathEnds[it] }
+
+                // Decide which path we are on (straight or branch)
+                val isAtStraight = straightEnd != null && currentPose.distanceTo(straightEnd) < 0.1
+                val isAtBranch = branchEnd != null && currentPose.distanceTo(branchEnd) < 0.1
+
+                val revDef = if (isAtStraight) {
+                    if (def.id.contains("left")) TrackLibrary.SWITCH_LEFT_REV_STRAIGHT else TrackLibrary.SWITCH_RIGHT_REV_STRAIGHT
+                } else {
+                    if (def.id.contains("left")) TrackLibrary.SWITCH_LEFT_REV_BRANCH else TrackLibrary.SWITCH_RIGHT_REV_BRANCH
                 }
 
-                // Place it at currentPose
                 val sw = PlacedPiece(revDef, currentPose, 0)
                 pieces.add(sw)
                 currentPose = sw.exitPose
-
-                // In a real implementation we'd verify that the other branch end matches sw.allConnectors[1]
-                if (pendingHeads.isNotEmpty()) {
-                    // Remove the head we just used
-                    // This is simplified
-                }
             }
         }
     }
@@ -186,7 +169,6 @@ class ManualLayoutTest {
         val isClosed = isLayoutClosed(pieces)
         println("\nIs layout closed: ${isClosed}")
 
-        // Assert that it has at least one loop
         assertTrue(isClosed, "Layout should form at least one closed loop")
     }
 
@@ -200,12 +182,8 @@ class ManualLayoutTest {
     private fun isLayoutClosed(pieces: List<PlacedPiece>): Boolean {
         if (pieces.isEmpty()) return false
 
-        // Build a graph where nodes are (pieceIndex, connectorIndex)
-        // and edges exist between connectors of the same piece, and between matching poses.
-
         val adj = mutableMapOf<Pair<Int, Int>, MutableList<Pair<Int, Int>>>()
 
-        // 1. Connectors within the same piece
         for (i in pieces.indices) {
             val piece = pieces[i]
             val numConnectors = piece.definition.allConnectors.size
@@ -218,7 +196,6 @@ class ManualLayoutTest {
             }
         }
 
-        // 2. Connections between different pieces
         val allConnectorNodes = pieces.indices.flatMap { i ->
             pieces[i].definition.allConnectors.indices.map { c -> i to c }
         }
@@ -241,7 +218,6 @@ class ManualLayoutTest {
             }
         }
 
-        // 3. Find cycles using DFS
         val visited = mutableSetOf<Pair<Int, Int>>()
 
         fun hasCycle(curr: Pair<Int, Int>, parent: Pair<Int, Int>?, path: MutableSet<Pair<Int, Int>>): Boolean {
@@ -251,7 +227,6 @@ class ManualLayoutTest {
             for (next in adj[curr] ?: emptyList()) {
                 if (next == parent) continue
                 if (next in path) {
-                    // Check if the cycle involves at least two different pieces
                     val piecesInCycle = path.map { it.first }.toSet() + next.first
                     if (piecesInCycle.size > 2) return true
                     continue

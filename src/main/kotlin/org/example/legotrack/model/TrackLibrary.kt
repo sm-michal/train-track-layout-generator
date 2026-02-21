@@ -79,11 +79,10 @@ object TrackLibrary {
         type = TrackType.SWITCH,
         exits = listOf(Transform(32.0, 0.0, 0.0)),
         allConnectors = listOf(
-            Transform(32.0, 0.0, 0.0), // C1 (Old P0)
-            Transform(-0.693, -12.955, 202.5), // C3 (Old P2)
-            Transform(0.0, 0.0, 180.0) // C2 (entry, Old P1)
+            Transform(32.0, 0.0, 0.0), // C1 (Exit)
+            Transform(0.693, 12.955, 202.5), // C3 (Branch Entry)
+            Transform(0.0, 0.0, 180.0) // C2 (Entry)
         ),
-        baseTransform = Transform(32.0, 0.0, 180.0),
         mirrorId = "switch_left:rev_s",
         relativeCheckpoints = listOf(
             Transform(8.0, 0.0, 0.0),
@@ -96,13 +95,12 @@ object TrackLibrary {
     val SWITCH_RIGHT_REV_BRANCH = TrackPieceDefinition(
         id = "switch_right:rev_b",
         type = TrackType.SWITCH,
-        exits = listOf(Transform(35.162, -0.542, -22.5)),
+        exits = listOf(Transform(23.966, -23.95, -22.5)),
         allConnectors = listOf(
-            Transform(35.162, -0.542, -22.5), // C1
-            Transform(5.598, 11.703, 157.5), // C2
-            Transform(0.0, 0.0, 180.0) // C3 (entry)
+            Transform(23.966, -23.95, -22.5), // C1 (Exit)
+            Transform(-5.598, -11.704, 157.5), // C2 (Straight Entry)
+            Transform(0.0, 0.0, 180.0) // C3 (Entry)
         ),
-        baseTransform = Transform(35.162, -0.542, 157.5),
         mirrorId = "switch_left:rev_b",
         relativeCheckpoints = listOf(
             Transform(8.0, 0.0, 0.0),
@@ -133,11 +131,10 @@ object TrackLibrary {
         type = TrackType.SWITCH,
         exits = listOf(Transform(32.0, 0.0, 0.0)),
         allConnectors = listOf(
-            Transform(32.0, 0.0, 0.0), // C1
-            Transform(-0.693, 12.955, 157.5), // C3
-            Transform(0.0, 0.0, 180.0) // C2 (entry)
+            Transform(32.0, 0.0, 0.0), // C1 (Exit)
+            Transform(0.693, -12.955, 157.5), // C3 (Branch Entry)
+            Transform(0.0, 0.0, 180.0) // C2 (Entry)
         ),
-        baseTransform = Transform(32.0, 0.0, 180.0),
         mirrorId = "switch_right:rev_s",
         relativeCheckpoints = listOf(
             Transform(8.0, 0.0, 0.0),
@@ -150,13 +147,12 @@ object TrackLibrary {
     val SWITCH_LEFT_REV_BRANCH = TrackPieceDefinition(
         id = "switch_left:rev_b",
         type = TrackType.SWITCH,
-        exits = listOf(Transform(35.162, 0.542, 22.5)),
+        exits = listOf(Transform(23.966, 23.95, 22.5)),
         allConnectors = listOf(
-            Transform(35.162, 0.542, 22.5), // C1
-            Transform(5.598, -11.703, 202.5), // C2
-            Transform(0.0, 0.0, 180.0) // C3 (entry)
+            Transform(23.966, 23.95, 22.5), // C1 (Exit)
+            Transform(-5.598, 11.704, 202.5), // C2 (Straight Entry)
+            Transform(0.0, 0.0, 180.0) // C3 (Entry)
         ),
-        baseTransform = Transform(35.162, 0.542, 202.5),
         mirrorId = "switch_right:rev_b",
         relativeCheckpoints = listOf(
             Transform(8.0, 0.0, 0.0),
