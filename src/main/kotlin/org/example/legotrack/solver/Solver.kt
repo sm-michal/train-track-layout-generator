@@ -2,8 +2,6 @@ package org.example.legotrack.solver
 
 import kotlinx.coroutines.*
 import org.example.legotrack.model.*
-import java.util.Collections
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.*
 
@@ -13,25 +11,28 @@ class Solver(
     val tolerancePos: Double = 0.5,
     val toleranceAngle: Double = 1.0
 ) {
-    private val solutions = Collections.synchronizedList(mutableListOf<List<PlacedPiece>>())
+    private val globalFeatureUsage = mutableMapOf<String, Int>().withDefault { 0 }
+    private val scorer = LayoutScorer(globalFeatureUsage)
+    private val solutions = java.util.Collections.synchronizedList(mutableListOf<ScoredSolution>())
     private var deadEndSolutionCount = 0
-    private var nodesExplored = AtomicLong(0)
-    private val seenSolutionSequences = ConcurrentHashMap.newKeySet<List<String>>()
-    private val sidingCache = Collections.synchronizedMap(mutableMapOf<String, List<PlacedPiece>?>())
+    private val nodesExplored = AtomicLong(0)
+    private val seenSolutionSequences = java.util.Collections.synchronizedSet(mutableSetOf<List<String>>())
+    private val sidingCache = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
     private val startPose = Pose(0.0, 0.0, 0.0)
 
-    private class SpatialGrid(val cellSize: Double = 10.0) {
-        private val grid = HashMap<Long, MutableList<Pose>>(128)
+    class SpatialGrid(val cellSize: Double = 32.0) {
+        private val grid = mutableMapOf<String, MutableList<Pose>>()
 
-        private fun gridKey(x: Int, y: Int): Long = (x.toLong() shl 32) or (y.toLong() and 0xFFFFFFFFL)
+        private fun gridKey(x: Int, y: Int) = "$x,$y"
 
-        private fun getCellCoords(pose: Pose): Pair<Int, Int> =
-            floor(pose.x / cellSize).toInt() to floor(pose.y / cellSize).toInt()
+        private fun getCellCoords(pose: Pose): Pair<Int, Int> {
+            return (pose.x / cellSize).toInt() to (pose.y / cellSize).toInt()
+        }
 
         fun add(piece: PlacedPiece) {
             for (pose in piece.checkpointPoses) {
                 val (x, y) = getCellCoords(pose)
-                grid.getOrPut(gridKey(x, y)) { ArrayList() }.add(pose)
+                grid.getOrPut(gridKey(x, y)) { mutableListOf() }.add(pose)
             }
         }
 
@@ -70,13 +71,14 @@ class Solver(
     private val mirrorMap: Map<String, String> by lazy {
         pieceOptions.values.flatten().associate { it.id to it.mirrorId }
     }
+    private val canonicalizer by lazy { SolutionCanonicalizer(mirrorMap) }
 
     init {
         // Initialize piece options based on known library pieces
         inventory.keys.forEach { id ->
             when (id) {
                 "straight" -> pieceOptions[id] = listOf(TrackLibrary.STRAIGHT)
-                "curve_r40" -> pieceOptions[id] = listOf(TrackLibrary.CURVE_R40, TrackLibrary.CURVE_R40_RIGHT)
+                "curve_r40" -> pieceOptions[id] = listOf(TrackLibrary.CURVE_R40, TrackLibrary.CURVE_R40_LEFT)
                 "switch_left" -> pieceOptions[id] = listOf(
                     TrackLibrary.SWITCH_LEFT,
                     TrackLibrary.SWITCH_LEFT_REV_STRAIGHT,
@@ -92,19 +94,98 @@ class Solver(
         }
     }
 
+    data class ScoredSolution(
+        val path: List<PlacedPiece>,
+        val scoreBreakdown: LayoutScorer.ScoreBreakdown
+    )
+
     private val maxPieceLength: Double = 32.0 // Switch straight is 32
     private val maxPieceAngle: Double = 22.5 // Max angle of a single piece
 
-    fun solve(): List<List<PlacedPiece>> = runBlocking(Dispatchers.Default) {
+    private data class InitialState(
+        val pose: Pose,
+        val remaining: MutableMap<String, Int>,
+        val path: MutableList<PlacedPiece>,
+        val grid: SpatialGrid,
+        val incFeat: IncrementalFeatures
+    )
+
+    private fun generateInitialStates(): List<InitialState> {
+        val states = mutableListOf<InitialState>()
+
+        // 1. Empty Start
+        states.add(InitialState(startPose, inventory.toMutableMap(), mutableListOf(), SpatialGrid(), IncrementalFeatures()))
+
+        fun addSeed(pieceDefs: List<Pair<TrackPieceDefinition, Int>>) {
+            val currentRemaining = inventory.toMutableMap()
+            var currentPose = startPose
+            val currentPath = mutableListOf<PlacedPiece>()
+            val currentGrid = SpatialGrid()
+            var currentFeat = IncrementalFeatures()
+
+            for ((def, exitIdx) in pieceDefs) {
+                val invId = getInventoryId(def.id)
+                val count = currentRemaining[invId] ?: 0
+                if (count <= 0) return
+
+                val piece = PlacedPiece(def, currentPose, exitIdx)
+                currentRemaining[invId] = count - 1
+                currentPath.add(piece)
+                currentGrid.add(piece)
+                currentFeat = scorer.updateIncremental(currentFeat, piece)
+                currentPose = piece.exitPose
+            }
+            states.add(InitialState(currentPose, currentRemaining, currentPath, currentGrid, currentFeat))
+        }
+
+        // 2. Long Straight
+        addSeed(List(4) { TrackLibrary.STRAIGHT to 0 })
+
+        // 3. Turns (90, 135, 180, 225)
+        val angles = listOf(90.0, 135.0, 180.0, 225.0)
+        for (a in angles) {
+            val n = (a / 22.5).roundToInt()
+            addSeed(List(n) { TrackLibrary.CURVE_R40 to 0 })
+            addSeed(List(n) { TrackLibrary.CURVE_R40_LEFT to 0 })
+        }
+
+        // 4. Switch starts
+        addSeed(listOf(TrackLibrary.SWITCH_LEFT to 0))
+        addSeed(listOf(TrackLibrary.SWITCH_LEFT to 1))
+        addSeed(listOf(TrackLibrary.SWITCH_RIGHT to 0))
+        addSeed(listOf(TrackLibrary.SWITCH_RIGHT to 1))
+
+        return states
+    }
+
+    fun solve(): List<ScoredSolution> = runBlocking(Dispatchers.Default) {
         solutions.clear()
         deadEndSolutionCount = 0
         nodesExplored.set(0)
         seenSolutionSequences.clear()
         sidingCache.clear()
-        val currentInventory = inventory.toMutableMap()
-        val grid = SpatialGrid()
-        backtrackParallel(startPose, currentInventory, mutableListOf(), grid, 0)
-        solutions.toList()
+        globalFeatureUsage.clear()
+
+        val totalInventorySize = inventory.values.sum()
+        val initialStates = generateInitialStates()
+
+        coroutineScope {
+            for (state in initialStates) {
+                launch {
+                    backtrackParallel(
+                        state.pose,
+                        state.remaining,
+                        state.path,
+                        state.grid,
+                        0,
+                        state.incFeat,
+                        totalInventorySize
+                    )
+                }
+            }
+        }
+
+        solutions.toList().sortedByDescending { it.scoreBreakdown.totalScore }
     }
 
     private suspend fun backtrackParallel(
@@ -112,7 +193,9 @@ class Solver(
         remaining: MutableMap<String, Int>,
         path: MutableList<PlacedPiece>,
         grid: SpatialGrid,
-        depth: Int
+        depth: Int,
+        incFeat: IncrementalFeatures,
+        totalInventorySize: Int
     ) {
         if (solutions.size >= maxSolutions) return
 
@@ -133,12 +216,12 @@ class Solver(
                         }
                     }
                 }
-                resolveUnusedExits(unusedExits, remaining, path, grid)
+                resolveUnusedExits(unusedExits, remaining, path, grid, totalInventorySize)
                 return
             }
         }
 
-        val candidates = getCandidates(currentPose, remaining)
+        val candidates = getCandidates(currentPose, remaining, incFeat)
 
         if (depth < 2) {
             coroutineScope {
@@ -162,12 +245,12 @@ class Solver(
                         val nextGrid = grid.copy()
                         if (nextPath.size > 1) nextGrid.add(nextPiece)
 
-                        backtrackParallel(nextPiece.exitPose, nextRemaining, nextPath, nextGrid, depth + 1)
+                        backtrackParallel(nextPiece.exitPose, nextRemaining, nextPath, nextGrid, depth + 1, scorer.updateIncremental(incFeat, nextPiece), totalInventorySize)
                     }
                 }
             }
         } else {
-            backtrackSerial(currentPose, remaining, path, grid)
+            backtrackSerial(currentPose, remaining, path, grid, incFeat, totalInventorySize)
         }
     }
 
@@ -175,12 +258,14 @@ class Solver(
         currentPose: Pose,
         remaining: MutableMap<String, Int>,
         path: MutableList<PlacedPiece>,
-        grid: SpatialGrid
+        grid: SpatialGrid,
+        incFeat: IncrementalFeatures,
+        totalInventorySize: Int
     ) {
         if (solutions.size >= maxSolutions) return
 
         // Check for closure
-        if (path.size > 3) { // At least 4 pieces for a non-trivial loop
+        if (path.size > 3) {
             val dist = currentPose.distanceTo(startPose)
             val angleDist = currentPose.angleDistanceTo(startPose)
             if (dist < tolerancePos && angleDist < toleranceAngle) {
@@ -196,8 +281,7 @@ class Solver(
                         }
                     }
                 }
-
-                resolveUnusedExitsSerial(unusedExits, remaining, path, grid)
+                resolveUnusedExitsSerial(unusedExits, remaining, path, grid, totalInventorySize)
                 return
             }
         }
@@ -210,33 +294,11 @@ class Solver(
         }
 
         val angleToStart = currentPose.angleDistanceTo(startPose)
-        // Each piece can change angle by at most 22.5 degrees
         if (angleToStart > remainingCount * maxPieceAngle + toleranceAngle) {
             return
         }
 
-        val candidates = mutableListOf<PlacedPiece>()
-        for (id in remaining.keys) {
-            val count = remaining[id]!!
-            if (count > 0) {
-                val options = pieceOptions[id] ?: continue
-                for (pieceDef in options) {
-                    for (exitIndex in pieceDef.exits.indices) {
-                        candidates.add(PlacedPiece(pieceDef, currentPose, exitIndex))
-                    }
-                }
-            }
-        }
-
-        // Heuristic: sort candidates by how much they improve distance/angle to start
-        candidates.sortBy { candidate ->
-            val nextPose = candidate.exitPose
-            val distScore = nextPose.distanceSq(startPose)
-            val angleScore = nextPose.angleDistanceTo(startPose).pow(2) * 5.0
-            // Boost switches to ensure they are used
-            val switchBoost = if (candidate.definition.type == TrackType.SWITCH) -500.0 else 0.0
-            distScore + angleScore + switchBoost
-        }
+        val candidates = getCandidates(currentPose, remaining, incFeat)
 
         for (nextPiece in candidates) {
             if (solutions.size >= maxSolutions) return
@@ -258,7 +320,7 @@ class Solver(
             path.add(nextPiece)
             if (path.size > 1) grid.add(nextPiece)
 
-            backtrackSerial(nextPiece.exitPose, remaining, path, grid)
+            backtrackSerial(nextPiece.exitPose, remaining, path, grid, scorer.updateIncremental(incFeat, nextPiece), totalInventorySize)
 
             if (path.size > 1) grid.remove(nextPiece)
             path.removeAt(path.size - 1)
@@ -266,7 +328,7 @@ class Solver(
         }
     }
 
-    private fun getCandidates(currentPose: Pose, remaining: Map<String, Int>): List<PlacedPiece> {
+    private fun getCandidates(currentPose: Pose, remaining: Map<String, Int>, incFeat: IncrementalFeatures): List<PlacedPiece> {
         val candidates = mutableListOf<PlacedPiece>()
         for (id in remaining.keys) {
             val count = remaining[id]!!
@@ -280,21 +342,21 @@ class Solver(
             }
         }
 
-        candidates.sortBy { candidate ->
+        // Heuristic: sort candidates by how much they improve distance/angle to start + layout score
+        val candidateScores = candidates.associateWith { candidate ->
             val nextPose = candidate.exitPose
-            val distScore = nextPose.distanceSq(startPose)
-            val angleScore = nextPose.angleDistanceTo(startPose).pow(2) * 5.0
-            val switchBoost = if (candidate.definition.type == TrackType.SWITCH) -500.0 else 0.0
-            distScore + angleScore + switchBoost
-        }
-        return candidates
-    }
+            val distToStartSq = nextPose.distanceSq(startPose)
+            val angleToStartWeight = nextPose.angleDistanceTo(startPose).pow(2) * 5.0
 
-    private fun getPathSequence(path: List<PlacedPiece>): List<String> {
-        return path.map { piece ->
-            val deadEnds = piece.deadEndExits.joinToString(",")
-            "${piece.definition.id}:${piece.chosenExitIndex}:${piece.isDeadEnd}:${deadEnds}"
+            val geoHeuristic = -(distToStartSq + angleToStartWeight)
+
+            val nextFeat = scorer.updateIncremental(incFeat, candidate)
+            val layoutScore = with(scorer) { calculateScore(nextFeat.toLayoutFeatures()) }
+
+            geoHeuristic + layoutScore
         }
+        candidates.sortByDescending { candidateScores[it] }
+        return candidates
     }
 
     private fun getInventoryId(fullId: String): String {
@@ -306,32 +368,45 @@ class Solver(
         }
     }
 
+    private fun updateGlobalUsage(path: List<PlacedPiece>) {
+        val features = scorer.extractFeatures(path)
+        if (features.isLShape) globalFeatureUsage["l_shape"] = globalFeatureUsage.getOrDefault("l_shape", 0) + 1
+        if (features.isUShape) globalFeatureUsage["u_shape"] = globalFeatureUsage.getOrDefault("u_shape", 0) + 1
+        if (features.hasSiding) globalFeatureUsage["siding"] = globalFeatureUsage.getOrDefault("siding", 0) + 1
+    }
+
     private fun resolveUnusedExits(
         unusedExits: List<Pair<Int, PlacedPiece>>,
         remaining: MutableMap<String, Int>,
         currentPath: List<PlacedPiece>,
-        grid: SpatialGrid
+        grid: SpatialGrid,
+        totalInventorySize: Int
     ) {
-        resolveUnusedExitsSerial(unusedExits, remaining, currentPath, grid)
+        resolveUnusedExitsSerial(unusedExits, remaining, currentPath, grid, totalInventorySize)
     }
 
     private fun resolveUnusedExitsSerial(
         unusedExits: List<Pair<Int, PlacedPiece>>,
         remaining: MutableMap<String, Int>,
         currentPath: List<PlacedPiece>,
-        grid: SpatialGrid
+        grid: SpatialGrid,
+        totalInventorySize: Int
     ) {
         if (unusedExits.isEmpty()) {
-            val sequence = getPathSequence(currentPath)
-            val hasDeadEnds = currentPath.any { it.isDeadEnd || it.deadEndExits.isNotEmpty() }
-            val canonical = getCanonicalSequence(sequence, isCycle = !hasDeadEnds)
-            if (seenSolutionSequences.add(canonical)) {
-                solutions.add(currentPath.toList())
+            if (totalInventorySize - currentPath.size <= 5) {
+                val sequence = canonicalizer.getPathSequence(currentPath)
+                val hasDeadEnds = currentPath.any { it.isDeadEnd || it.deadEndExits.isNotEmpty() }
+                val canonical = canonicalizer.getCanonicalSequence(sequence, isCycle = !hasDeadEnds)
+                if (seenSolutionSequences.add(canonical)) {
+                    val features = scorer.extractFeatures(currentPath)
+                    val breakdown = scorer.getScoreBreakdown(features)
+                    solutions.add(ScoredSolution(currentPath.toList(), breakdown))
+                    updateGlobalUsage(currentPath)
+                }
             }
             return
         }
 
-        // Try connecting the first unused exit to any other unused exit
         val (idx1, s1) = unusedExits[0]
         val pose1 = s1.allConnectorPoses[idx1]
 
@@ -346,9 +421,8 @@ class Solver(
             val maxSiding = minOf(20, remaining.values.sum())
             if (findPathBetweenBacktrack(pose1, targetPose, remaining, tempPath, sidingPath, grid, maxSiding)) {
                 val nextUnused = unusedExits.filterIndexed { index, _ -> index != 0 && index != i }
-                resolveUnusedExitsSerial(nextUnused, remaining, tempPath, grid)
+                resolveUnusedExitsSerial(nextUnused, remaining, tempPath, grid, totalInventorySize)
 
-                // Backtrack inventory manually
                 for (p in sidingPath) {
                     val invId = getInventoryId(p.definition.id)
                     remaining[invId] = (remaining[invId] ?: 0) + 1
@@ -357,13 +431,12 @@ class Solver(
             }
         }
 
-        // Try making the first unused exit a dead end (if allowed)
         val switchCount = currentPath.count { it.definition.type == TrackType.SWITCH }
         if (switchCount % 2 != 0 && deadEndSolutionCount < 1) {
             val (exitIdx, switch) = unusedExits[0]
             val startPose = switch.allConnectorPoses[exitIdx]
             val currentBranch = mutableListOf<PlacedPiece>()
-            searchBranchRecursive(switch, exitIdx, startPose, remaining, currentPath, currentBranch, 0, unusedExits.drop(1), grid)
+            searchBranchRecursive(switch, exitIdx, startPose, remaining, currentPath, currentBranch, 0, unusedExits.drop(1), grid, totalInventorySize)
         }
     }
 
@@ -376,7 +449,8 @@ class Solver(
         currentBranch: MutableList<PlacedPiece>,
         depth: Int,
         otherUnused: List<Pair<Int, PlacedPiece>>,
-        grid: SpatialGrid
+        grid: SpatialGrid,
+        totalInventorySize: Int
     ) {
         if (depth <= 4) {
             val pathWithDeadEnd = if (currentBranch.isEmpty()) {
@@ -391,14 +465,19 @@ class Solver(
             }
 
             if (otherUnused.isEmpty()) {
-                val sequence = getPathSequence(pathWithDeadEnd)
-                val canonical = getCanonicalSequence(sequence, isCycle = false)
-                if (seenSolutionSequences.add(canonical)) {
-                    solutions.add(pathWithDeadEnd)
-                    deadEndSolutionCount++
+                if (totalInventorySize - pathWithDeadEnd.size <= 5) {
+                    val sequence = canonicalizer.getPathSequence(pathWithDeadEnd)
+                    val canonical = canonicalizer.getCanonicalSequence(sequence, isCycle = false)
+                    if (seenSolutionSequences.add(canonical)) {
+                        val features = scorer.extractFeatures(pathWithDeadEnd)
+                        val breakdown = scorer.getScoreBreakdown(features)
+                        solutions.add(ScoredSolution(pathWithDeadEnd, breakdown))
+                        updateGlobalUsage(pathWithDeadEnd)
+                        deadEndSolutionCount++
+                    }
                 }
             } else {
-                resolveUnusedExitsSerial(otherUnused, remaining, pathWithDeadEnd, grid)
+                resolveUnusedExitsSerial(otherUnused, remaining, pathWithDeadEnd, grid, totalInventorySize)
             }
         }
 
@@ -417,7 +496,7 @@ class Solver(
                         remaining[id] = count - 1
                         currentBranch.add(nextPiece)
                         grid.add(nextPiece)
-                        searchBranchRecursive(switch, exitIdx, nextPiece.exitPose, remaining, mainPath, currentBranch, depth + 1, otherUnused, grid)
+                        searchBranchRecursive(switch, exitIdx, nextPiece.exitPose, remaining, mainPath, currentBranch, depth + 1, otherUnused, grid, totalInventorySize)
                         grid.remove(nextPiece)
                         currentBranch.removeAt(currentBranch.size - 1)
                         remaining[id] = count
@@ -446,7 +525,7 @@ class Solver(
         val relRot = (targetPose.rotation - currentPose.rotation + 360.0) % 360.0
         val cacheKey = "${(localX / 0.1).toInt()}:${(localY / 0.1).toInt()}:${(relRot / 0.1).toInt()}:$maxDepth"
 
-        if (sidingCache.containsKey(cacheKey) && sidingCache[cacheKey] == null) return false
+        if (sidingCache.containsKey(cacheKey)) return false
 
         val distToTarget = currentPose.distanceTo(targetPose)
         if (distToTarget < tolerancePos &&
@@ -455,9 +534,7 @@ class Solver(
         }
         if (maxDepth <= 0) return false
 
-        // Pruning: can't reach target even with max length pieces
         if (distToTarget > maxDepth * 32.0 + tolerancePos) return false
-
         val angleToTarget = currentPose.angleDistanceTo(targetPose)
         if (angleToTarget > maxDepth * 22.5 + toleranceAngle) return false
 
@@ -503,14 +580,13 @@ class Solver(
             path.removeAt(path.size - 1)
             remaining[inventoryId] = count
         }
-        sidingCache[cacheKey] = null
+        sidingCache[cacheKey] = true
         return false
     }
 
     private fun isCollision(newPiece: PlacedPiece, path: List<PlacedPiece>, grid: SpatialGrid): Boolean {
         val COLLISION_DIST_SQ = 7.0 * 7.0
 
-        // For short paths, O(N) is faster than grid lookups
         if (path.size < 25) {
             val newPoints = newPiece.checkpointPoses
             for (i in 1 until path.size) {
@@ -522,11 +598,9 @@ class Solver(
                 }
             }
         } else {
-            // Against grid (covers path except piece 0)
             if (grid.checkCollision(newPiece, COLLISION_DIST_SQ)) return true
         }
 
-        // Against start (piece 0)
         val firstPiece = path.firstOrNull()
         if (firstPiece != null) {
             val newPoints = newPiece.checkpointPoses
@@ -534,53 +608,11 @@ class Solver(
             for (np in newPoints) {
                 for (sp in startPoints) {
                     if (np.distanceSq(sp) < COLLISION_DIST_SQ) {
-                        // If we are close to the start but NOT about to close the loop, it's a collision
                         if (newPiece.exitPose.distanceSq(startPose) > (tolerancePos * 10).pow(2)) return true
                     }
                 }
             }
         }
-
         return false
-    }
-
-    private fun getCanonicalSequence(sequence: List<String>, isCycle: Boolean = true): List<String> {
-        return getCanonicalSequence(sequence, mirrorMap, isCycle)
-    }
-
-    companion object {
-        fun getCanonicalSequence(sequence: List<String>, mirrorMap: Map<String, String>, isCycle: Boolean = true): List<String> {
-            val s = sequence
-            val m = s.map { str ->
-                val parts = str.split(":")
-                val id = parts[0]
-                val mirroredId = mirrorMap[id] ?: id
-                (listOf(mirroredId) + parts.drop(1)).joinToString(":")
-            }
-            val r = s.reversed()
-            val mr = m.reversed()
-
-            val equivalents = listOf(s, m, r, mr)
-
-            val allRepresentations = if (isCycle) {
-                equivalents.flatMap { eq ->
-                    (eq.indices).map { i ->
-                        eq.drop(i) + eq.take(i)
-                    }
-                }
-            } else {
-                equivalents
-            }
-
-            return allRepresentations.minWithOrNull(object : Comparator<List<String>> {
-                override fun compare(o1: List<String>, o2: List<String>): Int {
-                    for (i in o1.indices) {
-                        val cmp = o1[i].compareTo(o2[i])
-                        if (cmp != 0) return cmp
-                    }
-                    return 0
-                }
-            }) ?: s
-        }
     }
 }

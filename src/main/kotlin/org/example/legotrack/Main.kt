@@ -45,10 +45,20 @@ fun main(args: Array<String>) {
     if (!outputDir.exists()) outputDir.mkdirs()
 
     val renderer = SvgRenderer()
-    solutions.forEachIndexed { index, solution ->
+    solutions.forEachIndexed { index, scoredSolution ->
+        val solution = scoredSolution.path
+        val breakdown = scoredSolution.scoreBreakdown
+
         val svg = renderer.render(solution)
         val file = File(outputDir, "solution_${index + 1}.svg")
         file.writeText(svg)
-        println("Saved ${file.path}")
+
+        println("\nSolution ${index + 1}:")
+        println("  Score: ${breakdown.totalScore}")
+        println("  Breakdown:")
+        breakdown.components.filter { it.value != 0.0 }.forEach { (name, value) ->
+            println("    $name: $value")
+        }
+        println("  Saved ${file.path}")
     }
 }

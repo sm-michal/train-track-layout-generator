@@ -56,8 +56,10 @@ class SvgRenderer {
             }
             sb.append("  </g>\n")
 
-            // Connection point indicator at the start of the piece
-            sb.append("  <circle cx=\"${piece.pose.x}\" cy=\"${piece.pose.y}\" r=\"1\" fill=\"black\" />\n")
+            // Connection point indicators at all connectors
+            for (connPose in piece.allConnectorPoses) {
+                sb.append("  <circle cx=\"${connPose.x}\" cy=\"${connPose.y}\" r=\"0.8\" fill=\"black\" />\n")
+            }
 
             // Dead end indicators (stop signs)
             if (piece.isDeadEnd) {

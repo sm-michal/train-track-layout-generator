@@ -36,16 +36,19 @@ data class TrackPieceDefinition(
                 listOf("M 0 0 A $r $r 0 0 $sweep $x $y")
             }
             TrackType.SWITCH -> {
-                // Return paths for standard switch geometry (32 length, 16 offset branch)
+                // Return paths for standard switch geometry (32 length, 13 offset branch)
+                // SVG Y+ is DOWN.
+                // switch_right branches RIGHT (DOWN/+Y).
+                // switch_left branches LEFT (UP/-Y).
                 if (id.contains("right")) {
                     listOf(
                         "M 0 0 L 32 0",
-                        "M 0 0 Q 16 0, 32.693 -12.955"
+                        "M 0 0 Q 16 0, 32.693 12.955"
                     )
                 } else {
                     listOf(
                         "M 0 0 L 32 0",
-                        "M 0 0 Q 16 0, 32.693 12.955"
+                        "M 0 0 Q 16 0, 32.693 -12.955"
                     )
                 }
             }

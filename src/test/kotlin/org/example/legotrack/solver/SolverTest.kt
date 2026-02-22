@@ -14,7 +14,7 @@ class SolverTest {
         val solutions = solver.solve()
 
         assertEquals(1, solutions.size)
-        assertEquals(16, solutions[0].size)
+        assertEquals(16, solutions[0].path.size)
     }
 
     @Test
@@ -41,7 +41,7 @@ class SolverTest {
         val solutions = solver.solve()
 
         assertTrue(solutions.isNotEmpty(), "Should find at least one solution")
-        val sidingSolutions = solutions.filter { sol -> sol.count { it.definition.type == TrackType.SWITCH } == 2 }
+        val sidingSolutions = solutions.filter { sol -> sol.path.count { it.definition.type == TrackType.SWITCH } == 2 }
         println("Found ${sidingSolutions.size} siding solutions")
     }
 }
