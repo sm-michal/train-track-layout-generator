@@ -335,6 +335,9 @@ class Solver(
             if (count > 0) {
                 val options = pieceOptions[id] ?: continue
                 for (pieceDef in options) {
+                    // Restriction: A merge switch (rev) can only be placed if there is an unmatched diverge switch
+                    if (pieceDef.id.contains(":rev") && incFeat.openSwitchCount <= 0) continue
+
                     for (exitIndex in pieceDef.exits.indices) {
                         candidates.add(PlacedPiece(pieceDef, currentPose, exitIndex))
                     }

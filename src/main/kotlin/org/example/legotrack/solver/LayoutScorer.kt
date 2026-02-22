@@ -34,7 +34,8 @@ data class IncrementalFeatures(
     val longTurns180: Int = 0,
     val longTurns225: Int = 0,
     val zigZags: Int = 0,
-    val switchCount: Int = 0
+    val switchCount: Int = 0,
+    val openSwitchCount: Int = 0
 )
 
 class LayoutScorer(private val globalFeatureUsage: Map<String, Int>) {
@@ -127,8 +128,10 @@ class LayoutScorer(private val globalFeatureUsage: Map<String, Int>) {
             if (abs(ratio - 2.0) < 0.1) isUShape = true
         }
 
-        val hasSiding = path.any { it.definition.type == TrackType.SWITCH && !it.isDeadEnd && it.deadEndExits.isEmpty() }
+        val switchPieces = path.filter { it.definition.type == TrackType.SWITCH }
+        val hasSiding = switchPieces.any { !it.isDeadEnd && it.deadEndExits.isEmpty() }
         val hasDeadEnd = path.any { it.isDeadEnd || it.deadEndExits.isNotEmpty() }
+        val hasMultiLoop = hasSiding && switchPieces.size >= 2
 
         return LayoutFeatures(
             longStraights = longStraights,
@@ -143,7 +146,7 @@ class LayoutScorer(private val globalFeatureUsage: Map<String, Int>) {
             isUShape = isUShape,
             hasSiding = hasSiding,
             hasDeadEnd = hasDeadEnd,
-            hasMultiLoop = hasSiding // Simplified for now
+            hasMultiLoop = hasMultiLoop
         )
     }
 
@@ -208,9 +211,19 @@ class LayoutScorer(private val globalFeatureUsage: Map<String, Int>) {
         var lt180 = feat.longTurns180
         var lt225 = feat.longTurns225
         var zz = feat.zigZags
-        var swc = feat.switchCount + if (piece.definition.type == TrackType.SWITCH) 1 else 0
+        var swc = feat.switchCount
+        var osc = feat.openSwitchCount
 
         val type = piece.definition.type
+
+        if (type == TrackType.SWITCH) {
+            swc++
+            if (piece.definition.id.contains(":rev")) {
+                osc--
+            } else {
+                osc++
+            }
+        }
         val angle = piece.definition.exits.getOrNull(piece.chosenExitIndex)?.dRotation ?: 0.0
 
         if (type == TrackType.STRAIGHT || (type == TrackType.SWITCH && abs(angle) < 0.1)) {
@@ -249,7 +262,7 @@ class LayoutScorer(private val globalFeatureUsage: Map<String, Int>) {
             ltd = dir
         }
 
-        return IncrementalFeatures(tr, tar, cs, cta, ltd, ls, tsp, lt45, lt90, lt135, lt180, lt225, zz, swc)
+        return IncrementalFeatures(tr, tar, cs, cta, ltd, ls, tsp, lt45, lt90, lt135, lt180, lt225, zz, swc, osc)
     }
 
     fun IncrementalFeatures.toLayoutFeatures(): LayoutFeatures {
@@ -272,6 +285,8 @@ class LayoutScorer(private val globalFeatureUsage: Map<String, Int>) {
             else if (abs(absA - 225.0) < 1.0) lt225++
         }
 
+        val hasMultiLoop = switchCount >= 2 && openSwitchCount == 0
+
         return LayoutFeatures(
             longStraights = longStraights + if (currentStraight >= 4) 1 else 0,
             totalStraightPieces = totalStraightPieces + if (currentStraight >= 4) currentStraight else 0,
@@ -283,9 +298,9 @@ class LayoutScorer(private val globalFeatureUsage: Map<String, Int>) {
             zigZags = zigZags,
             isLShape = abs(ratio - 1.5) < 0.1,
             isUShape = abs(ratio - 2.0) < 0.1,
-            hasSiding = switchCount > 0,
+            hasSiding = switchCount >= 1, // Encourage placing the first switch
             hasDeadEnd = false,
-            hasMultiLoop = switchCount >= 2
+            hasMultiLoop = hasMultiLoop
         )
     }
 }
