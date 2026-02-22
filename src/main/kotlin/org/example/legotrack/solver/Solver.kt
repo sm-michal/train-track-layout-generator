@@ -155,6 +155,11 @@ class Solver(
         addSeed(listOf(TrackLibrary.SWITCH_RIGHT to 0))
         addSeed(listOf(TrackLibrary.SWITCH_RIGHT to 1))
 
+        // 5. Mixed starts
+        addSeed(listOf(TrackLibrary.STRAIGHT to 0, TrackLibrary.CURVE_R40 to 0))
+        addSeed(listOf(TrackLibrary.CURVE_R40 to 0, TrackLibrary.STRAIGHT to 0))
+        addSeed(listOf(TrackLibrary.STRAIGHT to 0, TrackLibrary.SWITCH_LEFT to 0))
+
         return states
     }
 
@@ -223,7 +228,7 @@ class Solver(
 
         val candidates = getCandidates(currentPose, remaining, incFeat)
 
-        if (depth < 2) {
+        if (depth < 3) {
             coroutineScope {
                 candidates.forEach { nextPiece ->
                     launch {
@@ -346,6 +351,7 @@ class Solver(
         }
 
         // Heuristic: sort candidates by how much they improve distance/angle to start + layout score
+        val random = java.util.Random()
         val candidateScores = candidates.associateWith { candidate ->
             val nextPose = candidate.exitPose
             val distToStartSq = nextPose.distanceSq(startPose)
@@ -356,7 +362,13 @@ class Solver(
             val nextFeat = scorer.updateIncremental(incFeat, candidate)
             val layoutScore = with(scorer) { calculateScore(nextFeat.toLayoutFeatures()) }
 
-            geoHeuristic + layoutScore
+            // Boost merge switches if we have an open switch
+            val mergeBoost = if (candidate.definition.id.contains(":rev") && incFeat.openSwitchCount > 0) 500.0 else 0.0
+
+            // Add a bit of randomness to explore different paths
+            val noise = random.nextDouble() * 50.0
+
+            geoHeuristic + layoutScore + mergeBoost + noise
         }
         candidates.sortByDescending { candidateScores[it] }
         return candidates
@@ -396,7 +408,7 @@ class Solver(
         totalInventorySize: Int
     ) {
         if (unusedExits.isEmpty()) {
-            if (totalInventorySize - currentPath.size <= 5) {
+            if (totalInventorySize - currentPath.size <= 6) {
                 val sequence = canonicalizer.getPathSequence(currentPath)
                 val hasDeadEnds = currentPath.any { it.isDeadEnd || it.deadEndExits.isNotEmpty() }
                 val canonical = canonicalizer.getCanonicalSequence(sequence, isCycle = !hasDeadEnds)
@@ -468,7 +480,7 @@ class Solver(
             }
 
             if (otherUnused.isEmpty()) {
-                if (totalInventorySize - pathWithDeadEnd.size <= 5) {
+                if (totalInventorySize - pathWithDeadEnd.size <= 6) {
                     val sequence = canonicalizer.getPathSequence(pathWithDeadEnd)
                     val canonical = canonicalizer.getCanonicalSequence(sequence, isCycle = false)
                     if (seenSolutionSequences.add(canonical)) {

@@ -129,9 +129,12 @@ class LayoutScorer(private val globalFeatureUsage: Map<String, Int>) {
         }
 
         val switchPieces = path.filter { it.definition.type == TrackType.SWITCH }
+        val divergeCount = switchPieces.count { !it.definition.id.contains(":rev") }
+        val mergeCount = switchPieces.count { it.definition.id.contains(":rev") }
+
         val hasSiding = switchPieces.any { !it.isDeadEnd && it.deadEndExits.isEmpty() }
         val hasDeadEnd = path.any { it.isDeadEnd || it.deadEndExits.isNotEmpty() }
-        val hasMultiLoop = hasSiding && switchPieces.size >= 2
+        val hasMultiLoop = hasSiding && divergeCount >= 1 && mergeCount >= 1 && divergeCount == mergeCount
 
         return LayoutFeatures(
             longStraights = longStraights,
@@ -286,6 +289,7 @@ class LayoutScorer(private val globalFeatureUsage: Map<String, Int>) {
         }
 
         val hasMultiLoop = switchCount >= 2 && openSwitchCount == 0
+        val hasSiding = switchCount >= 1
 
         return LayoutFeatures(
             longStraights = longStraights + if (currentStraight >= 4) 1 else 0,
@@ -298,7 +302,7 @@ class LayoutScorer(private val globalFeatureUsage: Map<String, Int>) {
             zigZags = zigZags,
             isLShape = abs(ratio - 1.5) < 0.1,
             isUShape = abs(ratio - 2.0) < 0.1,
-            hasSiding = switchCount >= 1, // Encourage placing the first switch
+            hasSiding = hasSiding,
             hasDeadEnd = false,
             hasMultiLoop = hasMultiLoop
         )
