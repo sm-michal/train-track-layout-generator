@@ -363,7 +363,7 @@ class Solver(
             val layoutScore = with(scorer) { calculateScore(nextFeat.toLayoutFeatures()) }
 
             // Boost merge switches if we have an open switch
-            val mergeBoost = if (candidate.definition.id.contains(":rev") && incFeat.openSwitchCount > 0) 500.0 else 0.0
+            val mergeBoost = if (candidate.definition.id.contains(":rev") && incFeat.openSwitchCount > 0) 2000.0 else 0.0
 
             // Add a bit of randomness to explore different paths
             val noise = random.nextDouble() * 50.0
@@ -447,7 +447,9 @@ class Solver(
         }
 
         val switchCount = currentPath.count { it.definition.type == TrackType.SWITCH }
-        if (switchCount % 2 != 0 && deadEndSolutionCount < 1) {
+        val canPairMore = (remaining["switch_left"] ?: 0) > 0 || (remaining["switch_right"] ?: 0) > 0
+
+        if (switchCount % 2 != 0 && !canPairMore && deadEndSolutionCount < 1) {
             val (exitIdx, switch) = unusedExits[0]
             val startPose = switch.allConnectorPoses[exitIdx]
             val currentBranch = mutableListOf<PlacedPiece>()

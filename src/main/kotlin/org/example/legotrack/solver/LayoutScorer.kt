@@ -17,7 +17,8 @@ data class LayoutFeatures(
     val isUShape: Boolean = false,
     val hasSiding: Boolean = false,
     val hasDeadEnd: Boolean = false,
-    val hasMultiLoop: Boolean = false
+    val hasMultiLoop: Boolean = false,
+    val openSwitchCount: Int = 0
 )
 
 data class IncrementalFeatures(
@@ -131,6 +132,7 @@ class LayoutScorer(private val globalFeatureUsage: Map<String, Int>) {
         val switchPieces = path.filter { it.definition.type == TrackType.SWITCH }
         val divergeCount = switchPieces.count { !it.definition.id.contains(":rev") }
         val mergeCount = switchPieces.count { it.definition.id.contains(":rev") }
+        val openSwitchCount = divergeCount - mergeCount
 
         val hasSiding = switchPieces.any { !it.isDeadEnd && it.deadEndExits.isEmpty() }
         val hasDeadEnd = path.any { it.isDeadEnd || it.deadEndExits.isNotEmpty() }
@@ -147,9 +149,10 @@ class LayoutScorer(private val globalFeatureUsage: Map<String, Int>) {
             zigZags = zigZags,
             isLShape = isLShape,
             isUShape = isUShape,
-            hasSiding = hasSiding,
+            hasSiding = hasMultiLoop,
             hasDeadEnd = hasDeadEnd,
-            hasMultiLoop = hasMultiLoop
+            hasMultiLoop = hasMultiLoop,
+            openSwitchCount = openSwitchCount
         )
     }
 
@@ -168,6 +171,7 @@ class LayoutScorer(private val globalFeatureUsage: Map<String, Int>) {
         // Rewards (prioritized weights)
         components["multi_loop"] = (if (features.hasMultiLoop) 1.0 else 0.0) * 1000.0
         components["siding"] = (if (features.hasSiding) 1.0 else 0.0) * 500.0
+        components["open_switch_penalty"] = -features.openSwitchCount.toDouble() * 2000.0
 
         // Balanced straight scoring: count * 100 + pieces * 15
         components["long_straights_count"] = features.longStraights.toDouble() * 100.0
@@ -302,9 +306,10 @@ class LayoutScorer(private val globalFeatureUsage: Map<String, Int>) {
             zigZags = zigZags,
             isLShape = abs(ratio - 1.5) < 0.1,
             isUShape = abs(ratio - 2.0) < 0.1,
-            hasSiding = hasSiding,
+            hasSiding = hasMultiLoop,
             hasDeadEnd = false,
-            hasMultiLoop = hasMultiLoop
+            hasMultiLoop = hasMultiLoop,
+            openSwitchCount = openSwitchCount
         )
     }
 }
