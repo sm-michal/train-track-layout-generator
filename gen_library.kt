@@ -11,7 +11,6 @@ data class Pose(val x: Double, val y: Double, val rotation: Double) {
     }
 
     fun relativeTo(other: Pose): Pose {
-        // Find transform T such that other.apply(T) = this
         val drot = (rotation - other.rotation + 360.0) % 360.0
         val rad = Math.toRadians(-other.rotation)
         val dxW = x - other.x
@@ -24,46 +23,42 @@ data class Pose(val x: Double, val y: Double, val rotation: Double) {
 
 fun main() {
     val fork = Pose(0.0, 0.0, 0.0)
-    val straightEntry = Pose(0.0, 0.0, 180.0) // Connector at fork facing away
+    val straightEntry = Pose(0.0, 0.0, 180.0)
     val straightExit = Pose(32.0, 0.0, 0.0)
     val branchExitRight = Pose(32.693, 12.955, 22.5)
     val branchExitLeft = Pose(32.693, -12.955, -22.5)
+    val branchEntryRight = Pose(32.693, 12.955, 202.5)
+    val branchEntryLeft = Pose(32.693, -12.955, 157.5)
 
     println("--- SWITCH RIGHT ---")
-    val entryR = straightEntry
-    val exitR = straightExit
-    val branchR = branchExitRight
+    // REV_STRAIGHT (Entry at straightExit facing fork)
+    val rsEntry = Pose(32.0, 0.0, 180.0)
+    println("REV_STRAIGHT (Entry at SX facing fork):")
+    println("  baseTransform: ${fork.relativeTo(rsEntry)}")
+    println("  C1 (Fork Exit): ${fork.apply(0.0, 0.0, 180.0).relativeTo(rsEntry)}") // Faces 180
+    println("  C3 (Branch Entry): ${branchEntryRight.relativeTo(rsEntry)}")
+    println("  C2 (Entry): ${straightExit.apply(0.0,0.0,180.0).relativeTo(rsEntry)}")
 
-    // REV STRAIGHT
-    // Entry is straightExit, facing fork (rotation 180)
-    val revSEntry = Pose(32.0, 0.0, 180.0)
-    println("REV_STRAIGHT allConnectors relative to entry:")
-    println("  C1 (Exit): ${straightExit.relativeTo(revSEntry)}")
-    println("  C3 (Branch Entry): ${branchExitRight.relativeTo(revSEntry)}")
-    println("  C2 (Entry): ${Pose(32.0, 0.0, 180.0).relativeTo(revSEntry)}") // Entry itself
-    println("  baseTransform: ${fork.relativeTo(revSEntry)}")
-
-    // REV BRANCH
-    // Entry is branchExitRight, facing fork (rotation 202.5)
-    val revBEntry = Pose(32.693, 12.955, 202.5)
-    println("REV_BRANCH allConnectors relative to entry:")
-    println("  C1 (Exit): ${straightExit.relativeTo(revBEntry)}")
-    println("  C2 (Straight Entry): ${fork.apply(0.0, 0.0, 180.0).relativeTo(revBEntry)}")
-    println("  C3 (Entry): ${branchExitRight.relativeTo(revBEntry)}")
-    println("  baseTransform: ${fork.relativeTo(revBEntry)}")
+    // REV_BRANCH (Entry at branchExit facing fork)
+    val rbEntry = Pose(32.693, 12.955, 202.5)
+    println("\nREV_BRANCH (Entry at BX facing fork):")
+    println("  baseTransform: ${fork.relativeTo(rbEntry)}")
+    println("  C1 (Fork Exit): ${fork.apply(0.0,0.0,180.0).relativeTo(rbEntry)}")
+    println("  C2 (Straight Entry): ${Pose(0.0, 0.0, 180.0).relativeTo(rbEntry)}")
+    println("  C3 (Entry): ${branchExitRight.apply(0.0,0.0,180.0).relativeTo(rbEntry)}")
 
     println("\n--- SWITCH LEFT ---")
-    // REV STRAIGHT
-    val revSEntryL = Pose(32.0, 0.0, 180.0)
-    println("REV_STRAIGHT allConnectors relative to entry:")
-    println("  C1 (Exit): ${straightExit.relativeTo(revSEntryL)}")
-    println("  C3 (Branch Entry): ${branchExitLeft.relativeTo(revSEntryL)}")
-    println("  baseTransform: ${fork.relativeTo(revSEntryL)}")
+    // REV_STRAIGHT
+    val rsEntryL = Pose(32.0, 0.0, 180.0)
+    println("REV_STRAIGHT:")
+    println("  baseTransform: ${fork.relativeTo(rsEntryL)}")
+    println("  C1 (Fork Exit): ${fork.apply(0.0,0.0,180.0).relativeTo(rsEntryL)}")
+    println("  C3 (Branch Entry): ${branchEntryLeft.relativeTo(rsEntryL)}")
 
-    // REV BRANCH
-    val revBEntryL = Pose(32.693, -12.955, 157.5)
-    println("REV_BRANCH allConnectors relative to entry:")
-    println("  C1 (Exit): ${straightExit.relativeTo(revBEntryL)}")
-    println("  C2 (Straight Entry): ${fork.apply(0.0, 0.0, 180.0).relativeTo(revBEntryL)}")
-    println("  baseTransform: ${fork.relativeTo(revBEntryL)}")
+    // REV_BRANCH
+    val rbEntryL = Pose(32.693, -12.955, 157.5)
+    println("\nREV_BRANCH:")
+    println("  baseTransform: ${fork.relativeTo(rbEntryL)}")
+    println("  C1 (Fork Exit): ${fork.apply(0.0,0.0,180.0).relativeTo(rbEntryL)}")
+    println("  C2 (Straight Entry): ${Pose(0.0, 0.0, 180.0).relativeTo(rbEntryL)}")
 }
