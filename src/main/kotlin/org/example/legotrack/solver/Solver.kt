@@ -155,6 +155,11 @@ class Solver(
         addSeed(listOf(TrackLibrary.SWITCH_RIGHT to 0))
         addSeed(listOf(TrackLibrary.SWITCH_RIGHT to 1))
 
+        // 5. Mixed starts
+        addSeed(listOf(TrackLibrary.STRAIGHT to 0, TrackLibrary.CURVE_R40 to 0))
+        addSeed(listOf(TrackLibrary.CURVE_R40 to 0, TrackLibrary.STRAIGHT to 0))
+        addSeed(listOf(TrackLibrary.STRAIGHT to 0, TrackLibrary.SWITCH_LEFT to 0))
+
         return states
     }
 
@@ -223,7 +228,7 @@ class Solver(
 
         val candidates = getCandidates(currentPose, remaining, incFeat)
 
-        if (depth < 2) {
+        if (depth < 3) {
             coroutineScope {
                 candidates.forEach { nextPiece ->
                     launch {
@@ -335,6 +340,9 @@ class Solver(
             if (count > 0) {
                 val options = pieceOptions[id] ?: continue
                 for (pieceDef in options) {
+                    // Restriction: A merge switch (rev) can only be placed if there is an unmatched diverge switch
+                    if (pieceDef.id.contains(":rev") && incFeat.openSwitchCount <= 0) continue
+
                     for (exitIndex in pieceDef.exits.indices) {
                         candidates.add(PlacedPiece(pieceDef, currentPose, exitIndex))
                     }
@@ -343,6 +351,7 @@ class Solver(
         }
 
         // Heuristic: sort candidates by how much they improve distance/angle to start + layout score
+        val random = java.util.Random()
         val candidateScores = candidates.associateWith { candidate ->
             val nextPose = candidate.exitPose
             val distToStartSq = nextPose.distanceSq(startPose)
@@ -353,7 +362,13 @@ class Solver(
             val nextFeat = scorer.updateIncremental(incFeat, candidate)
             val layoutScore = with(scorer) { calculateScore(nextFeat.toLayoutFeatures()) }
 
-            geoHeuristic + layoutScore
+            // Boost merge switches if we have an open switch
+            val mergeBoost = if (candidate.definition.id.contains(":rev") && incFeat.openSwitchCount > 0) 2000.0 else 0.0
+
+            // Add a bit of randomness to explore different paths
+            val noise = random.nextDouble() * 50.0
+
+            geoHeuristic + layoutScore + mergeBoost + noise
         }
         candidates.sortByDescending { candidateScores[it] }
         return candidates
@@ -393,7 +408,7 @@ class Solver(
         totalInventorySize: Int
     ) {
         if (unusedExits.isEmpty()) {
-            if (totalInventorySize - currentPath.size <= 5) {
+            if (totalInventorySize - currentPath.size <= 6) {
                 val sequence = canonicalizer.getPathSequence(currentPath)
                 val hasDeadEnds = currentPath.any { it.isDeadEnd || it.deadEndExits.isNotEmpty() }
                 val canonical = canonicalizer.getCanonicalSequence(sequence, isCycle = !hasDeadEnds)
@@ -432,7 +447,9 @@ class Solver(
         }
 
         val switchCount = currentPath.count { it.definition.type == TrackType.SWITCH }
-        if (switchCount % 2 != 0 && deadEndSolutionCount < 1) {
+        val canPairMore = (remaining["switch_left"] ?: 0) > 0 || (remaining["switch_right"] ?: 0) > 0
+
+        if (switchCount % 2 != 0 && !canPairMore && deadEndSolutionCount < 1) {
             val (exitIdx, switch) = unusedExits[0]
             val startPose = switch.allConnectorPoses[exitIdx]
             val currentBranch = mutableListOf<PlacedPiece>()
@@ -465,7 +482,7 @@ class Solver(
             }
 
             if (otherUnused.isEmpty()) {
-                if (totalInventorySize - pathWithDeadEnd.size <= 5) {
+                if (totalInventorySize - pathWithDeadEnd.size <= 6) {
                     val sequence = canonicalizer.getPathSequence(pathWithDeadEnd)
                     val canonical = canonicalizer.getCanonicalSequence(sequence, isCycle = false)
                     if (seenSolutionSequences.add(canonical)) {
