@@ -2,6 +2,8 @@ package org.example.legotrack
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import org.example.legotrack.renderer.LayoutJsonSerializer
 import org.example.legotrack.renderer.SvgRenderer
 import org.example.legotrack.solver.Solver
 import java.io.File
@@ -45,13 +47,20 @@ fun main(args: Array<String>) {
     if (!outputDir.exists()) outputDir.mkdirs()
 
     val renderer = SvgRenderer()
+    val jsonSerializer = LayoutJsonSerializer()
+    val jsonPrinter = Json { prettyPrint = true }
+
     solutions.forEachIndexed { index, scoredSolution ->
         val solution = scoredSolution.path
         val breakdown = scoredSolution.scoreBreakdown
 
         val svg = renderer.render(solution)
-        val file = File(outputDir, "solution_${index + 1}.svg")
-        file.writeText(svg)
+        val svgFile = File(outputDir, "solution_${index + 1}.svg")
+        svgFile.writeText(svg)
+
+        val jsonLayout = jsonSerializer.serialize(solution)
+        val jsonFile = File(outputDir, "solution_${index + 1}.json")
+        jsonFile.writeText(jsonPrinter.encodeToString(JsonArray.serializer(), jsonLayout))
 
         println("\nSolution ${index + 1}:")
         println("  Score: ${breakdown.totalScore}")
@@ -59,6 +68,7 @@ fun main(args: Array<String>) {
         breakdown.components.filter { it.value != 0.0 }.forEach { (name, value) ->
             println("    $name: $value")
         }
-        println("  Saved ${file.path}")
+        println("  Saved ${svgFile.path}")
+        println("  Saved ${jsonFile.path}")
     }
 }
